@@ -1,0 +1,69 @@
+# Example inputs for terraform-stacks/create-cluster
+# Topology: 3 control-plane nodes across Availability Domains, 2 workers
+# Upstream: oracle-quickstart/oci-openshift v1.6.0 (Assisted Installer)
+#
+# Copy to a gitignored file before apply, e.g.:
+#   cp examples/ha-3cp-2workers.tfvars.example terraform-stacks/create-cluster/terraform.tfvars
+#
+# Values marked REPLACE_* must be filled in. cluster_name and zone_dns must match
+# the Assisted Installer cluster name and base domain exactly.
+
+# ---------------------------------------------------------------------------
+# OCI identity / placement
+# ---------------------------------------------------------------------------
+tenancy_ocid     = "REPLACE_TENANCY_OCID"
+compartment_ocid = "REPLACE_COMPARTMENT_OCID"
+region           = "REPLACE_REGION" # e.g. us-ashburn-1 (prefer a multi-AD region)
+
+# Compartment that already has openshift-tags from create-resource-attribution-tags
+tag_namespace_compartment_ocid_resource_tagging = "REPLACE_ATTRIBUTION_TAG_COMPARTMENT_OCID"
+
+# ---------------------------------------------------------------------------
+# Cluster identity (must match Assisted Installer)
+# ---------------------------------------------------------------------------
+cluster_name         = "ocidemo" # DNS-compatible: 1-54 chars, start/end alphanumeric
+zone_dns             = "example.com"
+installation_method  = "Assisted"
+public_ssh_key       = "REPLACE_SSH_PUBLIC_KEY"
+
+# Discovery ISO Pre-Authenticated Request URL from Object Storage
+openshift_image_source_uri = "REPLACE_DISCOVERY_ISO_PAR_URL"
+
+# ---------------------------------------------------------------------------
+# Node sizing: 3 control plane across ADs, 2 workers
+# ---------------------------------------------------------------------------
+control_plane_count                 = 3
+distribute_cp_instances_across_ads  = true
+distribute_cp_instances_across_fds  = true
+# starting_ad_name_cp = null  # optional; omit to let the stack pick the first AD
+
+compute_count                            = 2
+distribute_compute_instances_across_ads  = true
+distribute_compute_instances_across_fds  = true
+
+control_plane_shape = "VM.Standard.E5.Flex"
+control_plane_ocpu  = 4
+control_plane_memory = 24
+
+compute_shape  = "VM.Standard.E5.Flex"
+compute_ocpu   = 6
+compute_memory = 32
+
+# ---------------------------------------------------------------------------
+# Network CIDRs (OpenShift + OCI underlay — must not overlap)
+# Match these in Assisted Installer: Machine / Cluster (pod) / Service CIDR
+# ---------------------------------------------------------------------------
+# Machine network (OCI VCN + subnets)
+vcn_cidr                 = "10.0.0.0/16"
+public_cidr              = "10.0.0.0/20"
+private_cidr_ocp         = "10.0.16.0/20"
+private_cidr_bare_metal  = "10.0.32.0/20"
+
+# OpenShift overlay
+cluster_network_cidr_block = "10.128.0.0/14" # pod / clusterNetwork
+service_network_cidr_block = "172.30.0.0/16" # ClusterIP services
+
+# ---------------------------------------------------------------------------
+# OCI CCM + CSI (load balancer + block volume integration)
+# ---------------------------------------------------------------------------
+oci_driver_version = "v1.34.0"

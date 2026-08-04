@@ -1,0 +1,11 @@
+# Example inputs for terraform-stacks/create-resource-attribution-tags
+# Apply this stack once per tenancy (or home region for C3) BEFORE create-cluster.
+#
+#   cp examples/resource-attribution-tags.tfvars.example \
+#      terraform-stacks/create-resource-attribution-tags/terraform.tfvars
+
+tenancy_ocid = "REPLACE_TENANCY_OCID"
+
+# Compartment where the openshift-tags namespace is created; reuse this OCID as
+# tag_namespace_compartment_ocid_resource_tagging in create-cluster.
+tag_namespace_compartment_ocid_resource_tagging = "REPLACE_COMPARTMENT_OCID"
