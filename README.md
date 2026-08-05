@@ -1,10 +1,30 @@
 # OpenShift on OCI (Terraform)
 
-Terraform stacks to provision a Red Hat OpenShift Container Platform cluster on Oracle Cloud Infrastructure using the **Assisted Installer** path.
+Two ways to deploy a Red Hat OpenShift Container Platform cluster on Oracle Cloud Infrastructure.
 
-Vendored from [oracle-quickstart/oci-openshift](https://github.com/oracle-quickstart/oci-openshift) **v1.6.0**. See [terraform-stacks/VENDOR.md](terraform-stacks/VENDOR.md).
+Vendored infra stacks: [oracle-quickstart/oci-openshift](https://github.com/oracle-quickstart/oci-openshift) **v1.6.0** — see [terraform-stacks/VENDOR.md](terraform-stacks/VENDOR.md).
 
-## Target topology
+## Choose a path
+
+| | [Option 1 — Assisted (docs)](option-1-assisted/) | [Option 2 — ROSA-like facade](option-2-rosa-like/) |
+| --- | --- | --- |
+| Support posture | Oracle / Red Hat documented interactive flow | Community automation around the same stacks + Assisted **API** |
+| Operator UX | Terraform + Hybrid Cloud Console steps | Single `terraform apply` / `./deploy.sh` |
+| Best for | First installs, RMS console, following official guides | CI / repeatable labs closer to ROSA Terraform UX |
+| Product type | Self-managed OCP on your OCI tenancy | Same (not managed ROSA) |
+
+```text
+Option 1:  you  ↔ Assisted Console  ↔  terraform-stacks/create-cluster
+Option 2:  terraform apply  →  scripts drive Assisted API + create-cluster + install
+```
+
+---
+
+## Option 1 — Oracle/docs Assisted Installer (supported)
+
+Manual steps between applies. See also [option-1-assisted/README.md](option-1-assisted/README.md).
+
+### Target topology
 
 | Role | Count | Placement |
 | --- | --- | --- |
@@ -15,13 +35,11 @@ Cloud provider integrations (via stack IAM + `dynamic_custom_manifest`):
 
 - **Load balancers** — OCI flexible LBs for `api`, `api-int`, and `*.apps` (CCM)
 - **Storage** — OCI Block Volumes (CSI)
-- **Identity** — Instance Principals (dynamic groups + policies), not AWS-style OIDC/IRSA
+- **Identity** — Instance Principals (dynamic groups + policies)
 
 Example inputs: [examples/ha-3cp-2workers.tfvars.example](examples/ha-3cp-2workers.tfvars.example).
 
-## Network CIDRs
-
-Defaults (pinned in the example tfvars) must not overlap. Use the **same** values in Assisted Installer networking.
+### Network CIDRs
 
 | Network | Terraform variable | CIDR |
 | --- | --- | --- |
@@ -32,22 +50,20 @@ Defaults (pinned in the example tfvars) must not overlap. Use the **same** value
 | **Pod / clusterNetwork** | `cluster_network_cidr_block` | **`10.128.0.0/14`** |
 | **Service network** | `service_network_cidr_block` | **`172.30.0.0/16`** |
 
-Change these only if they collide with an existing peered VCN or on-prem range.
+Use the **same** values in Assisted Installer networking.
 
-## Prerequisites
+### Prerequisites
 
 - OCI tenancy with permissions to create VCN, compute, LB, DNS, IAM, and tags
-- Prefer a **multi-AD** region so three control-plane nodes land in three Availability Domains
-- Child compartment (recommended) and an Object Storage bucket for the discovery ISO
-- Red Hat account, pull secret, and Assisted Installer access
+- Prefer a **multi-AD** region
+- Child compartment and Object Storage bucket for the discovery ISO
+- Red Hat account, pull secret, Assisted Installer access
 - DNS base domain for `zone_dns`
 - SSH public key
 
-## Apply order
+### Apply order
 
-### 1. Resource attribution tags (once per tenancy)
-
-Skipping this causes bootstrap failures. The stack creates `openshift-tags` / `openshift-resource=openshift-resource-infra`.
+#### 1. Resource attribution tags (once per tenancy)
 
 ```bash
 cp examples/resource-attribution-tags.tfvars.example \
@@ -59,72 +75,72 @@ terraform init
 terraform apply
 ```
 
-Note the compartment OCID used for the tag namespace; pass it as `tag_namespace_compartment_ocid_resource_tagging` to `create-cluster`.
+#### 2. Assisted Installer (Red Hat Hybrid Cloud Console)
 
-You can also apply this stack via [OCI Resource Manager](https://docs.oracle.com/en-us/iaas/Content/ResourceManager/Concepts/resourcemanager.htm) using the stack folder or the upstream zip release.
-
-### 2. Assisted Installer (Red Hat Hybrid Cloud Console)
-
-1. Create a cluster with partner platform **Oracle Cloud Infrastructure** (requires custom manifests).
+1. Create a cluster with partner platform **Oracle Cloud Infrastructure**.
 2. Set **Cluster name** = Terraform `cluster_name` and **Base domain** = Terraform `zone_dns`.
 3. Set Machine / Cluster (pod) / Service CIDRs to match the table above.
 4. Generate the **Minimal** discovery ISO.
 
 Docs: [Installing on Oracle Distributed Cloud with Assisted Installer](https://docs.redhat.com/en/documentation/openshift_container_platform/4.22/html/installing_on_oracle_distributed_cloud/installing-oci-assisted-installer).
 
-### 3. Upload ISO and create a PAR
+#### 3. Upload ISO and create a PAR
 
-1. Upload the discovery ISO to your Object Storage bucket.
-2. Create a Pre-Authenticated Request (PAR) URL for the object.
-3. Set `openshift_image_source_uri` in your create-cluster tfvars to that PAR URL.
+Upload the ISO to Object Storage, create a Pre-Authenticated Request, set `openshift_image_source_uri`.
 
-### 4. Create cluster infrastructure
+#### 4. Create cluster infrastructure
 
 ```bash
 cp examples/ha-3cp-2workers.tfvars.example \
   terraform-stacks/create-cluster/terraform.tfvars
-# edit REPLACE_* values (tenancy, compartment, region, SSH key, PAR URL, etc.)
+# edit REPLACE_* values
 
 cd terraform-stacks/create-cluster
 terraform init
 terraform apply
 ```
 
-This provisions VCN/subnets/NSGs, DNS (`api`, `api-int`, `*.apps`), three LBs, IAM dynamic groups/policies, tags, control-plane and compute instances, and CCM/CSI-related outputs.
+Key outputs: `dynamic_custom_manifest`, API/apps LB addresses, `etc_hosts_entry`.
 
-Key outputs:
+#### 5. Finish installation in Assisted Installer
 
-| Output | Use |
-| --- | --- |
-| `dynamic_custom_manifest` | Custom manifests for Assisted Installer (CCM + CSI) |
-| `open_shift_api_lb_addr` | Public/external API LB IP |
-| `open_shift_apps_lb_addr` | Apps / ingress LB IP |
-| `etc_hosts_entry` | Optional local `/etc/hosts` helper |
+Upload manifests, assign Control plane / Worker roles, install, download `kubeconfig`.
 
-### 5. Finish installation in Assisted Installer
+---
 
-1. Copy the `dynamic_custom_manifest` output into a file and upload it under the Assisted Installer **Custom manifests** step (folder `manifests`).
-2. Assign **Control plane** and **Worker** roles to the discovered hosts.
-3. Wait until hosts are Ready, then start installation.
-4. After install, download `kubeconfig` and open the OpenShift console.
+## Option 2 — ROSA-like facade (improved)
+
+Automates Assisted Installer API + ISO/PAR + `create-cluster` + role assignment + install wait.
+
+```bash
+cd option-2-rosa-like
+cp terraform.tfvars.example terraform.tfvars
+# fill pull_secret, rh_offline_token, OCIDs, bucket namespace, SSH key
+
+chmod +x deploy.sh scripts/*.sh
+./deploy.sh
+```
+
+Details, destroy helper, and limitations: [option-2-rosa-like/README.md](option-2-rosa-like/README.md).
+
+Requires `oci` CLI, `curl`, `jq`, Red Hat offline token, and network access to `api.openshift.com`.
+
+---
 
 ## Repository layout
 
 ```
-terraform-stacks/
-  create-resource-attribution-tags/   # mandatory tags first
-  create-cluster/                     # cluster infra + manifests
-  shared_modules/                     # network, lb, compute, iam, dns, manifest, …
-examples/
-  ha-3cp-2workers.tfvars.example
-  resource-attribution-tags.tfvars.example
+option-1-assisted/          # docs pointer to supported path
+option-2-rosa-like/         # ROSA-like root module + scripts
+terraform-stacks/           # vendored Oracle stacks (used by both options)
+  create-resource-attribution-tags/
+  create-cluster/
+  shared_modules/
+examples/                   # Option 1 tfvars examples
 ```
-
-Do not invent alternate CCM/CSI wiring; use the stack manifest output.
 
 ## Notes
 
-- Do not change `cluster_name` or `zone_dns` after generating the discovery ISO without regenerating the ISO.
-- Ingress LB backend warnings with 2 workers vs 3 routers are expected for this sizing; not a stack bug by default.
-- `add-nodes` and autoscaler stacks are intentionally not vendored here; pull them from upstream if needed.
-- Never commit real OCIDs, pull secrets, or PAR URLs; keep filled `*.tfvars` / `*.auto.tfvars` out of git.
+- Do not change `cluster_name` or base domain after generating the discovery ISO without regenerating.
+- Ingress LB backend warnings with 2 workers are expected for this sizing.
+- Never commit real OCIDs, pull secrets, offline tokens, or PAR URLs.

@@ -1,0 +1,31 @@
+# Option 2 — ROSA-like single-apply facade
+# cp terraform.tfvars.example terraform.tfvars
+
+cluster_name       = "ocidemo"
+base_domain        = "example.com"
+openshift_version  = "4.16"
+control_plane_count = 3
+compute_count       = 2
+
+# Red Hat
+pull_secret      = <<-EOT
+REPLACE_WITH_PULL_SECRET_JSON
+EOT
+rh_offline_token = "REPLACE_RH_OFFLINE_TOKEN"
+public_ssh_key   = "ssh-rsa REPLACE_SSH_PUBLIC_KEY"
+
+# OCI
+tenancy_ocid     = "ocid1.tenancy.oc1..REPLACE"
+compartment_ocid = "ocid1.compartment.oc1..REPLACE"
+region           = "us-ashburn-1"
+tag_namespace_compartment_ocid_resource_tagging = "ocid1.compartment.oc1..REPLACE"
+
+object_storage_namespace = "REPLACE_OBJECT_STORAGE_NAMESPACE"
+object_storage_bucket    = "openshift-discovery-iso"
+
+# CIDRs (must match Assisted + create-cluster)
+vcn_cidr               = "10.0.0.0/16"
+cluster_network_cidr   = "10.128.0.0/14"
+service_network_cidr   = "172.30.0.0/16"
+
+apply_attribution_tags = true

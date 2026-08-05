@@ -19,3 +19,6 @@
 kubeconfig
 manifest.yaml
 dynamic_custom_manifest.yml
+
+# Option 2 working directories (ISO, nested tfstate, kubeconfig)
+option-2-rosa-like/.work/
