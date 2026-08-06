@@ -1,0 +1,9 @@
+# Step 1 — create-resource-attribution-tags (once per tenancy)
+#
+#   cp option-3-agent-based/examples/01-attribution.tfvars.example \
+#      terraform-stacks/create-resource-attribution-tags/terraform.tfvars
+
+tenancy_ocid = "REPLACE_TENANCY_OCID"
+
+# Reuse this OCID as tag_namespace_compartment_ocid_resource_tagging in steps 2 and 4.
+tag_namespace_compartment_ocid_resource_tagging = "REPLACE_COMPARTMENT_OCID"

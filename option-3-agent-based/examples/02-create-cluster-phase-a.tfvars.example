@@ -1,0 +1,61 @@
+# Step 2 — create-cluster phase A (Agent-based, no instances yet)
+#
+#   cp option-3-agent-based/examples/02-create-cluster-phase-a.tfvars.example \
+#      terraform-stacks/create-cluster/terraform.tfvars
+#
+# After apply, export outputs into .work/ (see option-3-agent-based/README.md):
+#   terraform output -raw agent_config > ...
+#   terraform output -raw install_config > ...
+#   terraform output -raw dynamic_custom_manifest > ...
+
+tenancy_ocid     = "REPLACE_TENANCY_OCID"
+compartment_ocid = "REPLACE_COMPARTMENT_OCID"
+region           = "REPLACE_REGION" # e.g. us-ashburn-1
+
+tag_namespace_compartment_ocid_resource_tagging = "REPLACE_ATTRIBUTION_TAG_COMPARTMENT_OCID"
+
+cluster_name        = "ocidemo"
+zone_dns            = "example.com"
+installation_method = "Agent-based"
+
+# Phase A: provision networking/LBs/DNS/IAM only — do not create compute yet
+create_openshift_instances = false
+
+# Still required by the stack schema; ignored while create_openshift_instances is false
+openshift_image_source_uri = "TODO"
+
+public_ssh_key = "REPLACE_SSH_PUBLIC_KEY"
+
+# Embedded into install_config output — use a real Red Hat pull secret JSON string
+redhat_pull_secret = "REPLACE_PULL_SECRET_JSON"
+
+# Must be inside private_cidr_ocp; becomes rendezvousIP in agent-config.yaml
+rendezvous_ip = "10.0.16.20"
+
+is_disconnected_installation = false
+
+control_plane_count                = 3
+distribute_cp_instances_across_ads = true
+distribute_cp_instances_across_fds = true
+
+compute_count                           = 2
+distribute_compute_instances_across_ads = true
+distribute_compute_instances_across_fds = true
+
+control_plane_shape  = "VM.Standard.E5.Flex"
+control_plane_ocpu   = 4
+control_plane_memory = 24
+
+compute_shape  = "VM.Standard.E5.Flex"
+compute_ocpu   = 6
+compute_memory = 32
+
+vcn_cidr                = "10.0.0.0/16"
+public_cidr             = "10.0.0.0/20"
+private_cidr_ocp        = "10.0.16.0/20"
+private_cidr_bare_metal = "10.0.32.0/20"
+
+cluster_network_cidr_block = "10.128.0.0/14"
+service_network_cidr_block = "172.30.0.0/16"
+
+oci_driver_version = "v1.34.0"
