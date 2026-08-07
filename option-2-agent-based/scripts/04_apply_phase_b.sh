@@ -4,10 +4,10 @@ set -euo pipefail
 
 REPO_ROOT="${REPO_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
 CLUSTER_NAME="${CLUSTER_NAME:?Set CLUSTER_NAME}"
-WORK_DIR="${WORK_DIR:-${REPO_ROOT}/option-3-agent-based/.work/${CLUSTER_NAME}}"
+WORK_DIR="${WORK_DIR:-${REPO_ROOT}/option-2-agent-based/.work/${CLUSTER_NAME}}"
 CLUSTER_TF_DIR="${CLUSTER_TF_DIR:-${REPO_ROOT}/terraform-stacks/create-cluster}"
 PHASE_B_TFVARS="${PHASE_B_TFVARS:-${CLUSTER_TF_DIR}/terraform.tfvars}"
-EXAMPLE_B="${REPO_ROOT}/option-3-agent-based/examples/04-create-cluster-phase-b.tfvars.example"
+EXAMPLE_B="${REPO_ROOT}/option-2-agent-based/examples/04-create-cluster-phase-b.tfvars.example"
 PAR_FILE="${WORK_DIR}/iso-par-url.txt"
 
 log() { printf '[%s] %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$*"; }

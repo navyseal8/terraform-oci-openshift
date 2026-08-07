@@ -1,6 +1,6 @@
 # Option 2 — ROSA-like facade (ARCHIVED)
 
-> **Archived.** This path is no longer a primary workflow. Prefer [Option 1 (Assisted)](../../option-1-assisted/) or [Option 3 (Agent-based CLI)](../../option-3-agent-based/). See [archive/README.md](../README.md).
+> **Archived.** Prefer [Option 1 (Assisted)](../../option-1-assisted/) or [Option 2 (Agent-based CLI)](../../option-2-agent-based/).
 
 Single `terraform apply` / `./deploy.sh` that orchestrates the full OpenShift-on-OCI Assisted Installer flow so you do not click through the Hybrid Cloud Console between steps.
 
@@ -76,4 +76,4 @@ Root-module `terraform destroy` only removes null_resource tracking; always run 
 
 ## Relation to primary options
 
-Option 1 remains the Oracle/docs-supported interactive Assisted path. Option 3 is the Agent-based CLI path. This archived Option 2 wraps Assisted Installer **API** automation around the same stacks.
+See Option 1 (Assisted) and Option 2 (Agent-based CLI) in the repository root README.

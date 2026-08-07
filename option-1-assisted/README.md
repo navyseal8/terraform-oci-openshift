@@ -19,6 +19,6 @@ Manual Hybrid Cloud Console steps between Terraform applies. This is the path do
 5. Upload `dynamic_custom_manifest` in Assisted Installer  
 6. Assign roles → install  
 
-Full detail: [../README.md](../README.md#option-1--oracle-docs-assisted-installer-supported).
+Full detail: [../README.md](../README.md#option-1--oracledocs-assisted-installer-supported).
 
-For a CLI-only Agent-based path (no Console forms), see [Option 3](../option-3-agent-based/).
+For a CLI-only Agent-based path (no Console forms), see [Option 2](../option-2-agent-based/).

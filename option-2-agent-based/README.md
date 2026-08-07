@@ -1,4 +1,4 @@
-# Option 3 — Agent-based Installer (Terraform CLI, 4 steps)
+# Option 2 — Agent-based Installer (Terraform CLI, 4 steps)
 
 Skip the OCI Console / Resource Manager forms. Drive the same vendored [`create-cluster`](../terraform-stacks/create-cluster) stack from the CLI, then build the agent ISO **locally** with `openshift-install`, upload a PAR, and apply phase B.
 
@@ -45,7 +45,7 @@ Keep `cluster_name`, `zone_dns`, `rendezvous_ip`, and node counts identical acro
 Once per tenancy (skip if `openshift-tags` already exists).
 
 ```bash
-cp option-3-agent-based/examples/01-attribution.tfvars.example \
+cp option-2-agent-based/examples/01-attribution.tfvars.example \
   terraform-stacks/create-resource-attribution-tags/terraform.tfvars
 # edit REPLACE_*
 
@@ -61,7 +61,7 @@ Reuse that compartment OCID as `tag_namespace_compartment_ocid_resource_tagging`
 ## Step 2 — Create cluster phase A (no instances)
 
 ```bash
-cp option-3-agent-based/examples/02-create-cluster-phase-a.tfvars.example \
+cp option-2-agent-based/examples/02-create-cluster-phase-a.tfvars.example \
   terraform-stacks/create-cluster/terraform.tfvars
 # edit REPLACE_* (pull secret, SSH key, OCIDs, region, domain)
 
@@ -79,7 +79,7 @@ Capture outputs into a work directory (used by step 3):
 
 ```bash
 export CLUSTER_NAME=ocidemo   # must match cluster_name
-export WORK_DIR=$PWD/../../option-3-agent-based/.work/$CLUSTER_NAME
+export WORK_DIR=$PWD/../../option-2-agent-based/.work/$CLUSTER_NAME
 mkdir -p "$WORK_DIR/openshift"
 
 terraform output -raw agent_config > "$WORK_DIR/agent-config.yaml"
@@ -98,17 +98,17 @@ Build happens on the machine running the script (not an OCI builder VM).
 
 ```bash
 cd <repo-root>
-chmod +x option-3-agent-based/scripts/*.sh
+chmod +x option-2-agent-based/scripts/*.sh
 
 export CLUSTER_NAME=ocidemo
-export WORK_DIR=$PWD/option-3-agent-based/.work/$CLUSTER_NAME
+export WORK_DIR=$PWD/option-2-agent-based/.work/$CLUSTER_NAME
 export OCI_NAMESPACE=REPLACE_NAMESPACE
 export OCI_BUCKET=openshift-agent-iso
 export OCI_REGION=us-ashburn-1
 export OCI_COMPARTMENT_OCID=ocid1.compartment...
 # optional: export OPENSHIFT_INSTALL=/path/to/openshift-install
 
-./option-3-agent-based/scripts/03_create_agent_iso_par.sh
+./option-2-agent-based/scripts/03_create_agent_iso_par.sh
 ```
 
 The script:
@@ -125,11 +125,11 @@ The script:
 
 ```bash
 export CLUSTER_NAME=ocidemo
-export WORK_DIR=$PWD/option-3-agent-based/.work/$CLUSTER_NAME
+export WORK_DIR=$PWD/option-2-agent-based/.work/$CLUSTER_NAME
 
 # Uses terraform-stacks/create-cluster/terraform.tfvars (from step 2),
 # sets create_openshift_instances=true and openshift_image_source_uri=<PAR>
-./option-3-agent-based/scripts/04_apply_phase_b.sh
+./option-2-agent-based/scripts/04_apply_phase_b.sh
 ```
 
 Or apply manually with [examples/04-create-cluster-phase-b.tfvars.example](examples/04-create-cluster-phase-b.tfvars.example) after pasting the PAR URL.
@@ -146,12 +146,12 @@ journalctl -f
 Printed by `04_apply_phase_b.sh` and stored at:
 
 ```text
-option-3-agent-based/.work/<cluster>/auth/kubeadmin-password
-option-3-agent-based/.work/<cluster>/auth/kubeconfig
+option-2-agent-based/.work/<cluster>/auth/kubeadmin-password
+option-2-agent-based/.work/<cluster>/auth/kubeconfig
 ```
 
 ```bash
-export KUBECONFIG=option-3-agent-based/.work/$CLUSTER_NAME/auth/kubeconfig
+export KUBECONFIG=option-2-agent-based/.work/$CLUSTER_NAME/auth/kubeconfig
 oc get nodes
 oc get clusteroperators
 ```
@@ -169,7 +169,7 @@ User: `kubeadmin` — password from the file above.
 ## Layout
 
 ```
-option-3-agent-based/
+option-2-agent-based/
   README.md
   examples/
     01-attribution.tfvars.example

@@ -1,9 +1,9 @@
 # Step 2 — create-cluster phase A (Agent-based, no instances yet)
 #
-#   cp option-3-agent-based/examples/02-create-cluster-phase-a.tfvars.example \
+#   cp option-2-agent-based/examples/02-create-cluster-phase-a.tfvars.example \
 #      terraform-stacks/create-cluster/terraform.tfvars
 #
-# After apply, export outputs into .work/ (see option-3-agent-based/README.md):
+# After apply, export outputs into .work/ (see option-2-agent-based/README.md):
 #   terraform output -raw agent_config > ...
 #   terraform output -raw install_config > ...
 #   terraform output -raw dynamic_custom_manifest > ...

@@ -20,7 +20,7 @@ installation_method = "Agent-based"
 
 create_openshift_instances = true
 
-# Paste PAR URL from option-3-agent-based/.work/<cluster>/iso-par-url.txt
+# Paste PAR URL from option-2-agent-based/.work/<cluster>/iso-par-url.txt
 openshift_image_source_uri = "REPLACE_AGENT_ISO_PAR_URL"
 
 public_ssh_key     = "REPLACE_SSH_PUBLIC_KEY"

@@ -20,8 +20,5 @@ kubeconfig
 manifest.yaml
 dynamic_custom_manifest.yml
 
-# Option 2 working directories (archived path)
-archive/option-2-rosa-like/.work/
-
-# Option 3 working directories (agent ISO, auth/, PAR URL)
-option-3-agent-based/.work/
+# Option 2 working directories (agent ISO, auth/, PAR URL)
+option-2-agent-based/.work/

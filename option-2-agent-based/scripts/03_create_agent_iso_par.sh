@@ -6,9 +6,9 @@
 #
 # Example:
 #   export CLUSTER_NAME=ocidemo
-#   export WORK_DIR=$PWD/option-3-agent-based/.work/$CLUSTER_NAME
+#   export WORK_DIR=$PWD/option-2-agent-based/.work/$CLUSTER_NAME
 #   export OCI_NAMESPACE=... OCI_BUCKET=... OCI_REGION=... OCI_COMPARTMENT_OCID=...
-#   ./option-3-agent-based/scripts/03_create_agent_iso_par.sh
+#   ./option-2-agent-based/scripts/03_create_agent_iso_par.sh
 set -euo pipefail
 
 need_cmd() {
@@ -26,7 +26,7 @@ need_cmd "$OPENSHIFT_INSTALL"
 
 CLUSTER_NAME="${CLUSTER_NAME:?Set CLUSTER_NAME}"
 REPO_ROOT="${REPO_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
-WORK_DIR="${WORK_DIR:-${REPO_ROOT}/option-3-agent-based/.work/${CLUSTER_NAME}}"
+WORK_DIR="${WORK_DIR:-${REPO_ROOT}/option-2-agent-based/.work/${CLUSTER_NAME}}"
 CLUSTER_TF_DIR="${CLUSTER_TF_DIR:-${REPO_ROOT}/terraform-stacks/create-cluster}"
 CLUSTER_STATE="${CLUSTER_STATE:-}" # optional: -state path if not default
 
