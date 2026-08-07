@@ -21,4 +21,4 @@ Manual Hybrid Cloud Console steps between Terraform applies. This is the path do
 
 Full detail: [../README.md](../README.md#option-1--oracle-docs-assisted-installer-supported).
 
-For a single-command automation of the same flow, see [Option 2](../option-2-rosa-like/).
+For a CLI-only Agent-based path (no Console forms), see [Option 3](../option-3-agent-based/).

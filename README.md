@@ -1,24 +1,25 @@
 # OpenShift on OCI (Terraform)
 
-Three ways to deploy a Red Hat OpenShift Container Platform cluster on Oracle Cloud Infrastructure.
+Two supported ways to deploy a Red Hat OpenShift Container Platform cluster on Oracle Cloud Infrastructure.
 
 Vendored infra stacks: [oracle-quickstart/oci-openshift](https://github.com/oracle-quickstart/oci-openshift) **v1.6.0** — see [terraform-stacks/VENDOR.md](terraform-stacks/VENDOR.md).
 
 ## Choose a path
 
-| | [Option 1 — Assisted (docs)](option-1-assisted/) | [Option 2 — ROSA-like](option-2-rosa-like/) | [Option 3 — Agent-based CLI](option-3-agent-based/) |
-| --- | --- | --- | --- |
-| Support posture | Oracle / Red Hat interactive Assisted flow | Community automation (Assisted **API**) | Oracle Agent-based + Terraform, **CLI only** (no Console forms) |
-| Operator UX | Terraform + Hybrid Cloud Console | Single `terraform apply` / `./deploy.sh` | Four explicit CLI steps |
-| ISO | Assisted discovery ISO | Automated via API | `openshift-install agent create image` (local) + PAR |
-| Best for | First installs, official guides, RMS | CI / ROSA-like Assisted UX | Skipping OCI forms; Agent-based connected installs |
-| Product type | Self-managed OCP on your OCI tenancy | Same | Same |
+| | [Option 1 — Assisted (docs)](option-1-assisted/) | [Option 3 — Agent-based CLI](option-3-agent-based/) |
+| --- | --- | --- |
+| Support posture | Oracle / Red Hat interactive Assisted flow | Oracle Agent-based + Terraform, **CLI only** (no Console forms) |
+| Operator UX | Terraform + Hybrid Cloud Console | Four explicit CLI steps |
+| ISO | Assisted discovery ISO | `openshift-install agent create image` (local) + PAR |
+| Best for | First installs, official guides, RMS | Skipping OCI forms; Agent-based connected installs |
+| Product type | Self-managed OCP on your OCI tenancy | Same |
 
 ```text
 Option 1:  you ↔ Assisted Console ↔ terraform-stacks/create-cluster
-Option 2:  terraform apply → Assisted API + create-cluster + install
 Option 3:  tags → phase A → local agent ISO/PAR → phase B → kubeadmin
 ```
+
+An older Assisted API “ROSA-like” automation path is kept under [`archive/option-2-rosa-like/`](archive/option-2-rosa-like/) for reference only (not maintained as a primary path).
 
 ---
 
@@ -110,25 +111,6 @@ Upload manifests, assign Control plane / Worker roles, install, download `kubeco
 
 ---
 
-## Option 2 — ROSA-like facade (improved)
-
-Automates Assisted Installer API + ISO/PAR + `create-cluster` + role assignment + install wait.
-
-```bash
-cd option-2-rosa-like
-cp terraform.tfvars.example terraform.tfvars
-# fill pull_secret, rh_offline_token, OCIDs, bucket namespace, SSH key
-
-chmod +x deploy.sh scripts/*.sh
-./deploy.sh
-```
-
-Details, destroy helper, and limitations: [option-2-rosa-like/README.md](option-2-rosa-like/README.md).
-
-Requires `oci` CLI, `curl`, `jq`, Red Hat offline token, and network access to `api.openshift.com`.
-
----
-
 ## Option 3 — Agent-based CLI (4 steps)
 
 No OCI Console form filling. Same Oracle Agent-based + Terraform sequence as [Oracle docs](https://docs.oracle.com/en-us/iaas/Content/openshift-on-oci/agent-installer-using-stack.htm), driven entirely from the CLI. Agent ISO is **built locally** with `openshift-install`, then uploaded to Object Storage (PAR).
@@ -171,10 +153,10 @@ Requires `terraform`, `oci` CLI, and `openshift-install` on the machine running 
 ## Repository layout
 
 ```
-option-1-assisted/          # docs pointer to Assisted path
-option-2-rosa-like/         # Assisted API facade
+option-1-assisted/          # Assisted Installer (docs) path
 option-3-agent-based/       # Agent-based 4-step CLI
-terraform-stacks/           # vendored Oracle stacks (used by all options)
+archive/option-2-rosa-like/ # archived Assisted API facade (reference only)
+terraform-stacks/           # vendored Oracle stacks (used by Options 1 and 3)
   create-resource-attribution-tags/
   create-cluster/
   shared_modules/

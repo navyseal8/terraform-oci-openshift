@@ -1,4 +1,6 @@
-# Option 2 — ROSA-like facade (improved)
+# Option 2 — ROSA-like facade (ARCHIVED)
+
+> **Archived.** This path is no longer a primary workflow. Prefer [Option 1 (Assisted)](../../option-1-assisted/) or [Option 3 (Agent-based CLI)](../../option-3-agent-based/). See [archive/README.md](../README.md).
 
 Single `terraform apply` / `./deploy.sh` that orchestrates the full OpenShift-on-OCI Assisted Installer flow so you do not click through the Hybrid Cloud Console between steps.
 
@@ -31,7 +33,7 @@ Assisted API register (platform=oci)
 ## Quick start
 
 ```bash
-cd option-2-rosa-like
+cd archive/option-2-rosa-like
 cp terraform.tfvars.example terraform.tfvars
 # edit secrets and OCIDs
 
@@ -72,6 +74,6 @@ Root-module `terraform destroy` only removes null_resource tracking; always run 
 - Host role assignment is first N hosts → master, rest → worker (by hostname sort).
 - Not a Red Hat managed service; you own upgrades, SLAs, and OCI cost.
 
-## Relation to Option 1
+## Relation to primary options
 
-Option 1 remains the Oracle/docs-supported interactive path using `terraform-stacks/` directly. Option 2 wraps that stack and the Assisted Installer **API** for automation.
+Option 1 remains the Oracle/docs-supported interactive Assisted path. Option 3 is the Agent-based CLI path. This archived Option 2 wraps Assisted Installer **API** automation around the same stacks.
