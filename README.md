@@ -23,6 +23,41 @@ Option 2:  tags → phase A → local agent ISO/PAR → phase B → kubeadmin
 
 ## Prerequisites setup
 
+### Install OCI CLI (`oci` binary)
+
+The OCI CLI is Oracle’s command-line tool. You need it for `oci setup config` (credentials) and for Option 2 (Object Storage upload + PAR).
+
+**Linux / macOS (recommended install script):**
+
+```bash
+bash -c "$(curl -L https://raw.githubusercontent.com/oracle/oci-cli/master/scripts/install/install.sh)"
+```
+
+**Fedora / RHEL:**
+
+```bash
+sudo dnf install oci-cli
+```
+
+If the package is unavailable on your release, use the install script above.
+
+**pip (any platform):**
+
+```bash
+python3 -m pip install --user oci-cli
+# ensure ~/.local/bin is on your PATH
+```
+
+**Verify:**
+
+```bash
+oci --version
+```
+
+Official docs: [Installing the CLI](https://docs.oracle.com/en-us/iaas/Content/API/SDKDocs/cliinstall.htm)
+
+> **Note:** Terraform uses the `oracle/oci` provider and reads `~/.oci/config` for auth — it does not shell out to the `oci` binary. You still want the CLI for credential setup and Option 2 scripts.
+
 ### OCI API credentials (Terraform + `oci` CLI)
 
 OCI does not use `access_key_id` / `secret_access_key` like AWS. The equivalent is a config file plus a private key PEM:
@@ -38,7 +73,6 @@ The vendored stacks use the `oracle/oci` provider with **default auth** — they
 **One-time setup (recommended):**
 
 ```bash
-# Install OCI CLI, then:
 oci setup config
 ```
 
@@ -113,7 +147,7 @@ Never commit `oci_api_key.pem` or filled `*.tfvars` (see `.gitignore`).
 - DNS base domain for `zone_dns`
 - SSH public key
 
-Option 1 also needs Assisted Installer access. Option 2 also needs `oci` CLI and `openshift-install` on the machine that builds the agent ISO.
+Option 1 also needs Assisted Installer access. Option 2 also needs `openshift-install` on the machine that builds the agent ISO.
 
 ---
 
