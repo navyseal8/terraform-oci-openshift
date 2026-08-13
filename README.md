@@ -21,6 +21,102 @@ Option 2:  tags → phase A → local agent ISO/PAR → phase B → kubeadmin
 
 ---
 
+## Prerequisites setup
+
+### OCI API credentials (Terraform + `oci` CLI)
+
+OCI does not use `access_key_id` / `secret_access_key` like AWS. The equivalent is a config file plus a private key PEM:
+
+| AWS | OCI |
+| --- | --- |
+| `~/.aws/credentials` | `~/.oci/config` + `~/.oci/oci_api_key.pem` |
+| `access_key_id` | `user` (OCID) + `fingerprint` |
+| `secret_access_key` | Private key file (`key_file`) |
+
+The vendored stacks use the `oracle/oci` provider with **default auth** — they read `~/.oci/config` automatically. No API keys belong in `.tf` or `.tfvars`.
+
+**One-time setup (recommended):**
+
+```bash
+# Install OCI CLI, then:
+oci setup config
+```
+
+This creates:
+
+```text
+~/.oci/
+  config              # profile, OCIDs, fingerprint, region
+  oci_api_key.pem     # private API key (keep secret)
+  oci_api_key_public.pem
+```
+
+Example `~/.oci/config`:
+
+```ini
+[DEFAULT]
+user=ocid1.user.oc1..aaaaaaaaxxxxx
+fingerprint=aa:bb:cc:dd:ee:ff:00:11:22:33:44:55:66:77:88:99:00
+tenancy=ocid1.tenancy.oc1..aaaaaaaaxxxxx
+region=us-ashburn-1
+key_file=/home/you/.oci/oci_api_key.pem
+```
+
+Restrict the private key:
+
+```bash
+chmod 600 ~/.oci/oci_api_key.pem
+```
+
+**Verify before `terraform apply`:**
+
+```bash
+oci iam region list --output table
+# or
+oci os ns get
+```
+
+Optional explicit provider profile (usually not required):
+
+```hcl
+provider "oci" {
+  region              = "us-ashburn-1"
+  config_file_profile = "DEFAULT"
+}
+```
+
+Or via environment:
+
+```bash
+export OCI_CLI_CONFIG_FILE=$HOME/.oci/config
+export OCI_CLI_PROFILE=DEFAULT
+```
+
+**Manual API key (Console):** Identity & Security → Users → your user → API Keys → Add API Key. Upload the public key, paste the config preview into `~/.oci/config`, save the private key as `oci_api_key.pem`.
+
+**Credentials vs Terraform variables**
+
+| Location | Contents |
+| --- | --- |
+| `~/.oci/config` + PEM | Auth only (user, tenancy, fingerprint, key) |
+| `terraform.tfvars` | `tenancy_ocid`, `compartment_ocid`, `region` (OCIDs, not secrets) |
+
+Never commit `oci_api_key.pem` or filled `*.tfvars` (see `.gitignore`).
+
+### General requirements (both options)
+
+- `terraform` ≥ 1.0
+- OCI tenancy with permissions to create VCN, compute, LB, DNS, IAM, and tags
+- Prefer a **multi-AD** region (3 control-plane nodes across ADs)
+- Child compartment; Object Storage bucket for ISO images (Option 1 discovery ISO; Option 2 agent ISO)
+- Red Hat account and pull secret
+- DNS base domain for `zone_dns`
+- SSH public key
+
+Option 1 also needs Assisted Installer access. Option 2 also needs `oci` CLI and `openshift-install` on the machine that builds the agent ISO.
+
+---
+
 ## Option 1 — Oracle/docs Assisted Installer (supported)
 
 Manual steps between applies. See also [option-1-assisted/README.md](option-1-assisted/README.md).
@@ -53,14 +149,7 @@ Example inputs: [examples/ha-3cp-2workers.tfvars.example](examples/ha-3cp-2worke
 
 Use the **same** values in Assisted Installer networking.
 
-### Prerequisites
-
-- OCI tenancy with permissions to create VCN, compute, LB, DNS, IAM, and tags
-- Prefer a **multi-AD** region
-- Child compartment and Object Storage bucket for the discovery ISO
-- Red Hat account, pull secret, Assisted Installer access
-- DNS base domain for `zone_dns`
-- SSH public key
+See [Prerequisites setup](#prerequisites-setup) for OCI API credentials and shared tooling.
 
 ### Apply order
 
@@ -115,6 +204,8 @@ No OCI Console form filling. Same Oracle Agent-based + Terraform sequence as [Or
 
 Full walkthrough: [option-2-agent-based/README.md](option-2-agent-based/README.md).
 
+See [Prerequisites setup](#prerequisites-setup) for OCI API credentials (`~/.oci/config`).
+
 ```text
 1. terraform apply  →  create-resource-attribution-tags
 2. terraform apply  →  create-cluster (Agent-based, instances=false)
@@ -144,7 +235,7 @@ export OCI_NAMESPACE=... OCI_BUCKET=... OCI_REGION=... OCI_COMPARTMENT_OCID=...
 # password: option-2-agent-based/.work/$CLUSTER_NAME/auth/kubeadmin-password
 ```
 
-Requires `terraform`, `oci` CLI, and `openshift-install` on the machine running step 3.
+Requires `openshift-install` on the machine running step 3 (in addition to the tools in Prerequisites setup).
 
 ---
 
