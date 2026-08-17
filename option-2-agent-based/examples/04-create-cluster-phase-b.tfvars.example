@@ -24,7 +24,9 @@ create_openshift_instances = true
 openshift_image_source_uri = "REPLACE_AGENT_ISO_PAR_URL"
 
 public_ssh_key     = "REPLACE_SSH_PUBLIC_KEY"
-redhat_pull_secret = "REPLACE_PULL_SECRET_JSON"
+redhat_pull_secret = <<-EOT
+{"auths":{"cloud.openshift.com":{"auth":"...","email":"you@example.com"},...}}
+EOT
 
 rendezvous_ip                = "10.0.16.20"
 is_disconnected_installation = false

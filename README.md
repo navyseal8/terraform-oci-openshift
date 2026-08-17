@@ -135,6 +135,14 @@ export OCI_CLI_PROFILE=DEFAULT
 | `~/.oci/config` + PEM | Auth only (user, tenancy, fingerprint, key) |
 | `terraform.tfvars` | `tenancy_ocid`, `compartment_ocid`, `region` (OCIDs, not secrets) |
 
+**Red Hat pull secret (Option 2 Agent-based):** paste JSON with a HEREDOC — not `"..."` quotes, or `terraform init` fails on embedded `"` characters:
+
+```hcl
+redhat_pull_secret = <<-EOT
+{"auths":{...paste from console.redhat.com/openshift/install/pull-secret...}}
+EOT
+```
+
 Never commit `oci_api_key.pem` or filled `*.tfvars` (see `.gitignore`).
 
 ### General requirements (both options)

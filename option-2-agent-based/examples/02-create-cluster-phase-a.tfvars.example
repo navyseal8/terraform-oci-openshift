@@ -26,8 +26,11 @@ openshift_image_source_uri = "TODO"
 
 public_ssh_key = "REPLACE_SSH_PUBLIC_KEY"
 
-# Embedded into install_config output — use a real Red Hat pull secret JSON string
-redhat_pull_secret = "REPLACE_PULL_SECRET_JSON"
+# Paste your pull secret JSON from console.redhat.com/openshift/install/pull-secret.
+# Use a HEREDOC — do not wrap JSON in "..." or inner quotes break terraform init.
+redhat_pull_secret = <<-EOT
+{"auths":{"cloud.openshift.com":{"auth":"...","email":"you@example.com"},...}}
+EOT
 
 # Must be inside private_cidr_ocp; becomes rendezvousIP in agent-config.yaml
 rendezvous_ip = "10.0.16.20"
