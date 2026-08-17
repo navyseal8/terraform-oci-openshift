@@ -65,6 +65,36 @@ if [[ ! -f openshift/oci-dynamic-custom-manifest.yaml ]]; then
   tf_out dynamic_custom_manifest >openshift/oci-dynamic-custom-manifest.yaml
 fi
 
+validate_ssh_key_in_install_config() {
+  local key
+  key="$(awk -F"'" '/^sshKey:/ {print $2; exit}' install-config.yaml)"
+  if [[ -z "$key" ]]; then
+    echo "ERROR: install-config.yaml has no sshKey (set public_ssh_key in terraform.tfvars)" >&2
+    exit 1
+  fi
+  if [[ "$key" =~ ^(ssh-rsa|ssh-ed25519|ecdsa-sha2-nistp256|ecdsa-sha2-nistp384|ecdsa-sha2-nistp521|ssh-dss)[[:space:]] ]]; then
+    return 0
+  fi
+  cat >&2 <<EOF
+ERROR: invalid public_ssh_key in install-config.yaml (sshKey field).
+
+  openshift-install requires an OpenSSH *public* key, for example:
+    ssh-ed25519 AAAA... you@host
+    ssh-rsa AAAA... you@host
+
+  Common mistakes:
+    - pasting ~/.ssh/id_rsa (private key) instead of ~/.ssh/id_rsa.pub
+    - omitting the leading key type (ssh-rsa / ssh-ed25519)
+
+  Fix terraform-stacks/create-cluster/terraform.tfvars, then refresh this file:
+    rm -f "${WORK_DIR}/install-config.yaml"
+    terraform -chdir="${CLUSTER_TF_DIR}" output -raw install_config > "${WORK_DIR}/install-config.yaml"
+EOF
+  exit 1
+}
+
+validate_ssh_key_in_install_config
+
 # openshift-install expects install-config.yaml / agent-config.yaml in the dir;
 # it consumes and may remove them when creating the image — keep backups.
 cp -f agent-config.yaml agent-config.yaml.bak

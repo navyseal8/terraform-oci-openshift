@@ -64,6 +64,7 @@ Reuse that compartment OCID as `tag_namespace_compartment_ocid_resource_tagging`
 cp option-2-agent-based/examples/02-create-cluster-phase-a.tfvars.example \
   terraform-stacks/create-cluster/terraform.tfvars
 # edit REPLACE_* (pull secret, SSH key, OCIDs, region, domain)
+# public_ssh_key must be the full OpenSSH *public* key (ssh-ed25519 ... or ssh-rsa ...), not the private key
 
 cd terraform-stacks/create-cluster
 terraform init

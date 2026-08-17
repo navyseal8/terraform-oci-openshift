@@ -24,7 +24,7 @@ create_openshift_instances = false
 # Still required by the stack schema; ignored while create_openshift_instances is false
 openshift_image_source_uri = "TODO"
 
-public_ssh_key = "REPLACE_SSH_PUBLIC_KEY"
+public_ssh_key = "REPLACE_SSH_PUBLIC_KEY" # e.g. output of: cat ~/.ssh/id_ed25519.pub
 
 # Paste your pull secret JSON from console.redhat.com/openshift/install/pull-secret.
 # Use a HEREDOC — do not wrap JSON in "..." or inner quotes break terraform init.
