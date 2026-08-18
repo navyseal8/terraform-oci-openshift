@@ -1,0 +1,18 @@
+# Step 3b — upload agent ISO + PAR (after 03_build_agent_iso.sh)
+#
+#   cp option-2-agent-based/terraform/agent-iso-storage/terraform.tfvars.example \
+#      option-2-agent-based/terraform/agent-iso-storage/terraform.tfvars
+#
+#   cd option-2-agent-based/terraform/agent-iso-storage
+#   terraform init && terraform apply
+#
+# Then use output agent_iso_par_url for phase B (or run 04_apply_phase_b.sh).
+
+region           = "REPLACE_REGION"
+compartment_ocid = "REPLACE_COMPARTMENT_OCID"
+cluster_name     = "jemdemo"
+
+object_storage_bucket = "openshift-agent-iso"
+
+# Path to ISO from step 3 build (openshift-install output)
+agent_iso_file_path = "/absolute/path/to/option-2-agent-based/.work/jemdemo/agent.x86_64.iso"
