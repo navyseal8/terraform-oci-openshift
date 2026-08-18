@@ -91,11 +91,35 @@ terraform output -raw dynamic_custom_manifest \
 
 (Or let `scripts/03_create_agent_iso_par.sh` read outputs directly from this stack directory.)
 
+If you change `public_ssh_key` (or other values that affect `install_config`) after phase A, run `terraform apply` again so outputs in state are refreshed — `terraform output` alone reads the last applied state. Then delete the cached workdir file and regenerate:
+
+```bash
+rm -f "$WORK_DIR/install-config.yaml"
+terraform output -raw install_config > "$WORK_DIR/install-config.yaml"
+```
+
+The `sshKey` line must start with `ssh-ed25519` or `ssh-rsa` (use `cat ~/.ssh/id_ed25519.pub`, not the private key).
+
 ---
 
 ## Step 3 — Create agent ISO (local) and Object Storage PAR
 
 Build happens on the machine running the script (not an OCI builder VM).
+
+### Object Storage variables
+
+| Variable | What it is | Example |
+| --- | --- | --- |
+| `OCI_NAMESPACE` | Tenancy Object Storage namespace (fixed per account) | `axaamtblrmyj` |
+| `OCI_BUCKET` | Bucket name you choose | `openshift-agent-iso` |
+| `OCI_REGION` | Region where the bucket lives | `ap-singapore-1` |
+| `OCI_COMPARTMENT_OCID` | Compartment that owns the bucket | `ocid1.compartment...` |
+
+`OCI_NAMESPACE` is **not** your org name or bucket name. Look it up:
+
+```bash
+oci os ns get --query 'data' --raw-output
+```
 
 ```bash
 cd <repo-root>
@@ -103,8 +127,8 @@ chmod +x option-2-agent-based/scripts/*.sh
 
 export CLUSTER_NAME=ocidemo
 export WORK_DIR=$PWD/option-2-agent-based/.work/$CLUSTER_NAME
-export OCI_NAMESPACE=REPLACE_NAMESPACE
-export OCI_BUCKET=openshift-agent-iso
+export OCI_NAMESPACE=REPLACE_NAMESPACE   # from: oci os ns get
+export OCI_BUCKET=openshift-agent-iso      # any name you choose
 export OCI_REGION=us-ashburn-1
 export OCI_COMPARTMENT_OCID=ocid1.compartment...
 # optional: export OPENSHIFT_INSTALL=/path/to/openshift-install
@@ -119,6 +143,72 @@ The script:
 3. Uploads the ISO and creates an ObjectRead PAR
 4. Writes `$WORK_DIR/iso-par-url.txt`
 5. Leaves `$WORK_DIR/auth/kubeadmin-password` and `$WORK_DIR/auth/kubeconfig`
+
+### If step 3 fails partway (ISO built, no `iso-par-url.txt`)
+
+Uploading the ISO does **not** create a PAR. If the script failed during bucket upload or PAR creation, `$WORK_DIR/iso-par-url.txt` will be missing and `oci os preauth-request list` may return nothing — that is expected.
+
+Finish upload + PAR from the CLI (skip ISO rebuild if `agent.x86_64.iso` already exists):
+
+```bash
+export WORK_DIR=$PWD/option-2-agent-based/.work/$CLUSTER_NAME
+export OCI_NAMESPACE=REPLACE_NAMESPACE
+export OCI_BUCKET=openshift-agent-iso
+export OCI_REGION=ap-singapore-1
+export OCI_COMPARTMENT_OCID=ocid1.compartment...
+export OBJECT_NAME=${CLUSTER_NAME}-agent.iso
+export PAR_NAME=${CLUSTER_NAME}-agent-par
+export PAR_EXPIRE_DAYS=7
+
+# Confirm the ISO is present locally
+ls -lh "$WORK_DIR"/agent*.iso
+
+# Confirm the object in Object Storage (or note the actual object name)
+oci os object list \
+  --namespace-name "$OCI_NAMESPACE" \
+  --bucket-name "$OCI_BUCKET" \
+  --region "$OCI_REGION" \
+  --all
+
+# Create bucket if needed, then upload
+oci os bucket get --namespace-name "$OCI_NAMESPACE" --bucket-name "$OCI_BUCKET" --region "$OCI_REGION" \
+  || oci os bucket create \
+       --namespace-name "$OCI_NAMESPACE" \
+       --compartment-id "$OCI_COMPARTMENT_OCID" \
+       --name "$OCI_BUCKET" \
+       --region "$OCI_REGION"
+
+oci os object put \
+  --namespace-name "$OCI_NAMESPACE" \
+  --bucket-name "$OCI_BUCKET" \
+  --name "$OBJECT_NAME" \
+  --file "$WORK_DIR/agent.x86_64.iso" \
+  --region "$OCI_REGION" \
+  --force
+
+# Create PAR (full URL is only returned at create time)
+expire=$(date -u -d "+${PAR_EXPIRE_DAYS} days" +%Y-%m-%dT%H:%M:%SZ)
+
+par_json=$(oci os preauth-request create \
+  --namespace-name "$OCI_NAMESPACE" \
+  --bucket-name "$OCI_BUCKET" \
+  --name "$PAR_NAME" \
+  --access-type ObjectRead \
+  --time-expires "$expire" \
+  --object-name "$OBJECT_NAME" \
+  --region "$OCI_REGION")
+
+access_uri=$(echo "$par_json" | jq -r '.data."access-uri"')
+if [[ "$access_uri" == http* ]]; then
+  par_url="$access_uri"
+else
+  par_url="https://objectstorage.${OCI_REGION}.oraclecloud.com${access_uri}"
+fi
+
+echo "$par_url" | tee "$WORK_DIR/iso-par-url.txt"
+```
+
+`preauth-request list` shows PAR metadata only, not the URL. Save `iso-par-url.txt` for step 4 (`openshift_image_source_uri`).
 
 ---
 
