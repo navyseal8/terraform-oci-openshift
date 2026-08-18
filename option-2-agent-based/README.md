@@ -102,123 +102,97 @@ The `sshKey` line must start with `ssh-ed25519` or `ssh-rsa` (use `cat ~/.ssh/id
 
 ---
 
-## Step 3 — Create agent ISO (local) and Object Storage PAR
+## Step 3 — Agent ISO (local build) + Object Storage (Terraform)
 
-Build happens on the machine running the script (not an OCI builder VM).
+Step 3 has two parts:
 
-### Object Storage variables
-
-| Variable | What it is | Example |
+| Part | Tool | OCI resources |
 | --- | --- | --- |
-| `OCI_NAMESPACE` | Tenancy Object Storage namespace (fixed per account) | `axaamtblrmyj` |
-| `OCI_BUCKET` | Bucket name you choose | `openshift-agent-iso` |
-| `OCI_REGION` | Region where the bucket lives | `ap-singapore-1` |
-| `OCI_COMPARTMENT_OCID` | Compartment that owns the bucket | `ocid1.compartment...` |
+| **3a** Build ISO | `openshift-install` on your laptop | none |
+| **3b** Upload + PAR | Terraform [`terraform/agent-iso-storage`](terraform/agent-iso-storage/) | bucket, object, pre-authenticated request |
 
-`OCI_NAMESPACE` is **not** your org name or bucket name. Look it up:
+`openshift-install` cannot run inside Terraform; only the Object Storage pieces are managed as code.
 
-```bash
-oci os ns get --query 'data' --raw-output
-```
+### 3a — Build the agent ISO locally
 
 ```bash
 cd <repo-root>
 chmod +x option-2-agent-based/scripts/*.sh
 
-export CLUSTER_NAME=ocidemo
+export CLUSTER_NAME=jemdemo
 export WORK_DIR=$PWD/option-2-agent-based/.work/$CLUSTER_NAME
-export OCI_NAMESPACE=REPLACE_NAMESPACE   # from: oci os ns get
-export OCI_BUCKET=openshift-agent-iso      # any name you choose
-export OCI_REGION=us-ashburn-1
-export OCI_COMPARTMENT_OCID=ocid1.compartment...
 # optional: export OPENSHIFT_INSTALL=/path/to/openshift-install
 
+./option-2-agent-based/scripts/03_build_agent_iso.sh
+```
+
+If the ISO already exists from a prior run:
+
+```bash
+export SKIP_ISO_BUILD=1
+./option-2-agent-based/scripts/03_build_agent_iso.sh
+```
+
+### 3b — Bucket, ISO upload, and PAR (Terraform)
+
+```bash
+cp option-2-agent-based/terraform/agent-iso-storage/terraform.tfvars.example \
+   option-2-agent-based/terraform/agent-iso-storage/terraform.tfvars
+# edit region, compartment_ocid, object_storage_bucket
+
+export CLUSTER_NAME=jemdemo
+./option-2-agent-based/scripts/03_upload_agent_iso_tf.sh
+```
+
+Or apply manually:
+
+```bash
+cd option-2-agent-based/terraform/agent-iso-storage
+terraform init
+terraform apply
+terraform output -raw agent_iso_par_url
+```
+
+Terraform creates:
+
+- `oci_objectstorage_bucket` — agent ISO bucket
+- `oci_objectstorage_object` — uploads `agent_iso_file_path`
+- `oci_objectstorage_preauthrequest` — ObjectRead PAR
+
+Outputs:
+
+- `agent_iso_par_url` → use as `openshift_image_source_uri` in phase B
+- Also written to `$WORK_DIR/iso-par-url.txt` by the upload script
+
+**Namespace:** Terraform looks up the tenancy namespace automatically (`data.oci_objectstorage_namespace`). You do not set `OCI_NAMESPACE` manually.
+
+### One-shot wrapper (3a + 3b)
+
+```bash
 ./option-2-agent-based/scripts/03_create_agent_iso_par.sh
 ```
 
-The script:
-
-1. Ensures `agent-config.yaml`, `install-config.yaml`, and `openshift/oci-dynamic-custom-manifest.yaml` exist (from Terraform outputs if missing)
-2. Runs `openshift-install agent create image --dir "$WORK_DIR"`
-3. Uploads the ISO and creates an ObjectRead PAR
-4. Writes `$WORK_DIR/iso-par-url.txt`
-5. Leaves `$WORK_DIR/auth/kubeadmin-password` and `$WORK_DIR/auth/kubeconfig`
-
-### If step 3 fails partway (ISO built, no `iso-par-url.txt`)
-
-Uploading the ISO does **not** create a PAR. If the script failed during bucket upload or PAR creation, `$WORK_DIR/iso-par-url.txt` will be missing and `oci os preauth-request list` may return nothing — that is expected.
-
-Finish upload + PAR from the CLI (skip ISO rebuild if `agent.x86_64.iso` already exists):
+### Legacy: OCI CLI upload (not recommended)
 
 ```bash
-export WORK_DIR=$PWD/option-2-agent-based/.work/$CLUSTER_NAME
-export OCI_NAMESPACE=REPLACE_NAMESPACE
+export USE_OCI_CLI=1
+export OCI_NAMESPACE=...   # oci os ns get --query 'data' --raw-output
 export OCI_BUCKET=openshift-agent-iso
 export OCI_REGION=ap-singapore-1
 export OCI_COMPARTMENT_OCID=ocid1.compartment...
-export OBJECT_NAME=${CLUSTER_NAME}-agent.iso
-export PAR_NAME=${CLUSTER_NAME}-agent-par
-export PAR_EXPIRE_DAYS=7
-
-# Confirm the ISO is present locally
-ls -lh "$WORK_DIR"/agent*.iso
-
-# Confirm the object in Object Storage (or note the actual object name)
-oci os object list \
-  --namespace-name "$OCI_NAMESPACE" \
-  --bucket-name "$OCI_BUCKET" \
-  --region "$OCI_REGION" \
-  --all
-
-# Create bucket if needed, then upload
-oci os bucket get --namespace-name "$OCI_NAMESPACE" --bucket-name "$OCI_BUCKET" --region "$OCI_REGION" \
-  || oci os bucket create \
-       --namespace-name "$OCI_NAMESPACE" \
-       --compartment-id "$OCI_COMPARTMENT_OCID" \
-       --name "$OCI_BUCKET" \
-       --region "$OCI_REGION"
-
-oci os object put \
-  --namespace-name "$OCI_NAMESPACE" \
-  --bucket-name "$OCI_BUCKET" \
-  --name "$OBJECT_NAME" \
-  --file "$WORK_DIR/agent.x86_64.iso" \
-  --region "$OCI_REGION" \
-  --force
-
-# Create PAR (full URL is only returned at create time)
-expire=$(date -u -d "+${PAR_EXPIRE_DAYS} days" +%Y-%m-%dT%H:%M:%SZ)
-
-par_json=$(oci os preauth-request create \
-  --namespace-name "$OCI_NAMESPACE" \
-  --bucket-name "$OCI_BUCKET" \
-  --name "$PAR_NAME" \
-  --access-type ObjectRead \
-  --time-expires "$expire" \
-  --object-name "$OBJECT_NAME" \
-  --region "$OCI_REGION")
-
-access_uri=$(echo "$par_json" | jq -r '.data."access-uri"')
-if [[ "$access_uri" == http* ]]; then
-  par_url="$access_uri"
-else
-  par_url="https://objectstorage.${OCI_REGION}.oraclecloud.com${access_uri}"
-fi
-
-echo "$par_url" | tee "$WORK_DIR/iso-par-url.txt"
+./option-2-agent-based/scripts/03_create_agent_iso_par.sh
 ```
-
-`preauth-request list` shows PAR metadata only, not the URL. Save `iso-par-url.txt` for step 4 (`openshift_image_source_uri`).
 
 ### Re-running step 3 after a successful ISO build
 
 `openshift-install` stores state under `$WORK_DIR` (`.openshift_install_state.json`) and removes `install-config.yaml`, `agent-config.yaml`, and `openshift/` after the first successful build. **Re-running the full script in the same directory often fails** with a generic configuration error.
 
-If `agent.x86_64.iso` already exists, skip the rebuild and upload only:
+If `agent.x86_64.iso` already exists, skip the rebuild and run Terraform upload only:
 
 ```bash
 export SKIP_ISO_BUILD=1
-./option-2-agent-based/scripts/03_create_agent_iso_par.sh
+./option-2-agent-based/scripts/03_build_agent_iso.sh   # optional sanity check
+./option-2-agent-based/scripts/03_upload_agent_iso_tf.sh
 ```
 
 For a clean ISO rebuild (e.g. after changing cluster config), reset the workdir install state first:
@@ -287,13 +261,15 @@ User: `kubeadmin` — password from the file above.
 option-2-agent-based/
   README.md
   examples/
-    01-attribution.tfvars.example
-    02-create-cluster-phase-a.tfvars.example
-    04-create-cluster-phase-b.tfvars.example
   scripts/
-    03_create_agent_iso_par.sh
+    03_build_agent_iso.sh
+    03_upload_agent_iso_tf.sh
+    03_create_agent_iso_par.sh      # wrapper: 3a + 3b
+    03_create_agent_iso_par_cli.sh  # legacy OCI CLI path
     04_apply_phase_b.sh
-  .work/                         # gitignored
+  terraform/
+    agent-iso-storage/              # bucket + ISO object + PAR
+  .work/                            # gitignored
 ```
 
 ## Notes

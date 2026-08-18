@@ -13,8 +13,14 @@ PAR_FILE="${WORK_DIR}/iso-par-url.txt"
 log() { printf '[%s] %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$*"; }
 
 [[ -f "$PAR_FILE" ]] || {
-  echo "ERROR: missing ${PAR_FILE}; run scripts/03_create_agent_iso_par.sh first" >&2
-  exit 1
+  ISO_TF_DIR="${ISO_TF_DIR:-${REPO_ROOT}/option-2-agent-based/terraform/agent-iso-storage}"
+  if terraform -chdir="$ISO_TF_DIR" output -raw agent_iso_par_url >/dev/null 2>&1; then
+    log "Writing ${PAR_FILE} from agent-iso-storage Terraform output"
+    terraform -chdir="$ISO_TF_DIR" output -raw agent_iso_par_url >"$PAR_FILE"
+  else
+    echo "ERROR: missing ${PAR_FILE}; run scripts/03_upload_agent_iso_tf.sh first" >&2
+    exit 1
+  fi
 }
 par_url="$(tr -d '[:space:]' <"$PAR_FILE")"
 
