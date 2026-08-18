@@ -27,8 +27,38 @@ variable "create_openshift_instances" {
 
 variable "openshift_image_source_uri" {
   type        = string
-  description = "<strong><em>(Required)</em></strong> - The OCI Object Storage URL for the OpenShift image. Before provisioning resources through this Resource Manager stack, users should upload the OpenShift image to OCI Object Storage, create a Pre-Authenticated Request (PAR) URL, and paste the URL to this block. For more details, review <a href='https://docs.oracle.com/en-us/iaas/Content/Object/Concepts/objectstorageoverview.htm'>Object Storage</a> and <a href='https://docs.oracle.com/en-us/iaas/Content/Object/Tasks/usingpreauthenticatedrequests.htm'>PARs</a>."
-  default     = "TODO"
+  description = "PAR URL for the OpenShift agent/discovery ISO. When agent_iso_file_path is set (Agent-based), Terraform creates the PAR automatically and this value is ignored."
+  default     = ""
+}
+
+variable "create_resource_attribution_tags" {
+  type        = bool
+  description = "Create openshift-tags resource attribution tags in this apply. Set false after the first successful apply (tags already exist)."
+  default     = true
+}
+
+variable "agent_iso_file_path" {
+  type        = string
+  description = "Local path to agent*.iso from openshift-install. Set on the install apply; leave empty for infra-only apply."
+  default     = ""
+}
+
+variable "agent_iso_object_name" {
+  type        = string
+  description = "Object Storage key for the agent ISO. Defaults to <cluster_name>-agent.iso."
+  default     = ""
+}
+
+variable "agent_iso_par_name" {
+  type        = string
+  description = "Pre-authenticated request name for the agent ISO. Defaults to <cluster_name>-agent-par."
+  default     = ""
+}
+
+variable "agent_iso_par_expire_days" {
+  type        = number
+  description = "PAR lifetime in days when agent_iso_file_path is set."
+  default     = 7
 }
 
 variable "tag_namespace_compartment_ocid_resource_tagging" {
@@ -372,7 +402,7 @@ variable "object_storage_namespace" {
 
 variable "object_storage_bucket" {
   type        = string
-  description = "Name of the OCI Object Storage bucket where the OpenShift installation files will be stored."
+  description = "Object Storage bucket for the agent ISO (Agent-based connected installs). Created by Terraform when installation_method is Agent-based."
   default     = ""
 }
 

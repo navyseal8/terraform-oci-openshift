@@ -65,7 +65,7 @@ module "iam" {
   // dependency on tags
   op_openshift_tag_namespace     = module.tags.op_openshift_tag_namespace
   op_openshift_tag_instance_role = module.tags.op_openshift_tag_instance_role
-  defined_tags                   = module.resource_attribution_tags.openshift_resource_attribution_tag
+  defined_tags                   = local.openshift_resource_attribution_tag
 }
 
 
@@ -79,7 +79,7 @@ module "image" {
   image_name                  = var.cluster_name
   is_control_plane_iscsi_type = local.is_control_plane_iscsi_type
   is_compute_iscsi_type       = local.is_compute_iscsi_type
-  openshift_image_source_uri  = var.openshift_image_source_uri
+  openshift_image_source_uri  = local.openshift_image_source_uri
   control_plane_shape         = var.control_plane_shape
   compute_shape               = var.compute_shape
 
@@ -89,7 +89,7 @@ module "image" {
   autoscaler_node_shape            = var.autoscaler_node_shape
 
   // Depedency on tags
-  defined_tags = module.resource_attribution_tags.openshift_resource_attribution_tag
+  defined_tags = local.openshift_resource_attribution_tag
 }
 
 module "network" {
@@ -117,7 +117,7 @@ module "network" {
   existing_private_ocp_subnet_id        = var.existing_private_ocp_subnet_id
 
   // Depedency on tags
-  defined_tags = module.resource_attribution_tags.openshift_resource_attribution_tag
+  defined_tags = local.openshift_resource_attribution_tag
 }
 
 module "load_balancer" {
@@ -133,7 +133,7 @@ module "load_balancer" {
   load_balancer_shape_details_minimum_bandwidth_in_mbps = var.load_balancer_shape_details_minimum_bandwidth_in_mbps
 
   // Depedency on tags
-  defined_tags = module.resource_attribution_tags.openshift_resource_attribution_tag
+  defined_tags = local.openshift_resource_attribution_tag
 
   // Depedency on networks
   op_subnet_private_ocp                    = module.network.op_subnet_private_ocp
@@ -251,7 +251,7 @@ module "dns" {
   cluster_name       = var.cluster_name
 
   // Depedency on tags
-  defined_tags = module.resource_attribution_tags.openshift_resource_attribution_tag
+  defined_tags = local.openshift_resource_attribution_tag
 
   // Depedency on load balancer
   op_lb_openshift_api_int_lb_ip_addr = module.load_balancer.op_lb_openshift_api_int_lb_ip_addr
@@ -324,13 +324,4 @@ module "manifests" {
   cluster_network_cidr_block        = var.cluster_network_cidr_block
   service_network_cidr_block        = var.service_network_cidr_block
   autoscaler_node_image_id          = module.image.op_image_openshift_autoscaling_image
-}
-
-module "resource_attribution_tags" {
-  source = "./shared_modules/resource_attribution_tags/find_resource_tags"
-
-  providers = {
-    oci = oci.home
-  }
-  tag_namespace_compartment_ocid_resource_tagging = var.tag_namespace_compartment_ocid_resource_tagging
 }

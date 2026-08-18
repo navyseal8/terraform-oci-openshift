@@ -40,6 +40,12 @@ output "install_config" {
   description = "Install config output; null if use Assisted Installer."
 }
 
+output "agent_iso_par_url" {
+  value       = local.agent_iso_upload_enabled ? local.openshift_image_source_uri : null
+  description = "Agent ISO PAR URL when agent_iso_file_path is set; use as openshift_image_source_uri reference."
+  sensitive   = true
+}
+
 output "stack_version" {
   value = local.stack_version
 }

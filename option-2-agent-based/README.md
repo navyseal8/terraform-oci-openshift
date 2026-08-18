@@ -1,257 +1,131 @@
-# Option 2 — Agent-based Installer (Terraform CLI, 4 steps)
+# Option 2 — Agent-based Installer (3 steps, 1 Terraform state)
 
-Skip the OCI Console / Resource Manager forms. Drive the same vendored [`create-cluster`](../terraform-stacks/create-cluster) stack from the CLI, then build the agent ISO **locally** with `openshift-install`, upload a PAR, and apply phase B.
+One Terraform state in [`terraform-stacks/create-cluster`](../terraform-stacks/create-cluster) manages:
 
-Aligned with Oracle: [Installing a Cluster with Agent-based Installer Using Terraform](https://docs.oracle.com/en-us/iaas/Content/openshift-on-oci/agent-installer-using-stack.htm).
+- Resource attribution tags (optional create on first apply)
+- VCN, subnets, NSGs, load balancers, DNS, IAM
+- Agent ISO bucket, object upload, and PAR
+- Custom images and compute instances
+
+`openshift-install` still runs on your laptop (not in Terraform).
 
 ```text
-Step 1  attribution tags
-Step 2  create-cluster phase A  (Agent-based, create_openshift_instances=false)
-Step 3  openshift-install agent create image  →  OCI Object Storage PAR   (local build)
-Step 4  create-cluster phase B  (instances=true + PAR)  →  share kubeadmin password
+Step 1  terraform apply (infra) + build agent ISO locally
+Step 2  terraform apply (upload ISO, PAR, VMs)     — same state file
+Step 3  OpenShift agent install on nodes           — automatic; monitor with oc/SSH
 ```
+
+## Why not “ISO before any Terraform”?
+
+The agent ISO embeds Oracle CCM/CSI manifests that reference OCI resource OCIDs (VCN, subnets, load balancers). Those IDs only exist **after** an infra-only apply. Step 1 therefore does a small Terraform apply first, then builds the ISO from outputs.
+
+You still have **one state file** — step 2 continues the same `terraform-stacks/create-cluster` state.
+
+---
 
 ## Prerequisites
 
 | Requirement | Notes |
 | --- | --- |
-| `terraform` ≥ 1.0 | Attribution + create-cluster |
-| OCI API credentials | Same as any stack apply (`~/.oci/config` or env) |
-| `oci` CLI | Step 3 upload + PAR |
-| `openshift-install` | Matching your OCP version; on `PATH` or set `OPENSHIFT_INSTALL` |
-| Red Hat pull secret | Embedded in phase A/B `redhat_pull_secret` |
-| Multi-AD region (preferred) | 3 control-plane nodes across ADs |
-| Object Storage namespace + bucket name | ISO hosting |
-
-Connected install only (`is_disconnected_installation = false`). Disconnected/webserver ABI is out of scope here.
-
-## Defaults
-
-| Setting | Value |
-| --- | --- |
-| Control plane | 3 (spread across ADs/FDs) |
-| Workers | 2 |
-| `rendezvous_ip` | `10.0.16.20` (inside `10.0.16.0/20`) |
-| Machine / VCN | `10.0.0.0/16` |
-| Pod network | `10.128.0.0/14` |
-| Service network | `172.30.0.0/16` |
-
-Keep `cluster_name`, `zone_dns`, `rendezvous_ip`, and node counts identical across steps 2–4 and the agent ISO.
+| `terraform` ≥ 1.0 | Single stack: `terraform-stacks/create-cluster` |
+| OCI API credentials | `~/.oci/config` |
+| `openshift-install` | Matching OCP version |
+| Red Hat pull secret | In `terraform.tfvars` |
 
 ---
 
-## Step 1 — Resource attribution tags
-
-Once per tenancy (skip if `openshift-tags` already exists).
+## Setup
 
 ```bash
-cp option-2-agent-based/examples/01-attribution.tfvars.example \
-  terraform-stacks/create-resource-attribution-tags/terraform.tfvars
-# edit REPLACE_*
-
-cd terraform-stacks/create-resource-attribution-tags
-terraform init
-terraform apply
+cp option-2-agent-based/examples/terraform.tfvars.example \
+   terraform-stacks/create-cluster/terraform.tfvars
+# edit OCIDs, region, cluster_name, zone_dns, public_ssh_key, pull secret, shapes
 ```
 
-Reuse that compartment OCID as `tag_namespace_compartment_ocid_resource_tagging` in steps 2 and 4.
-
 ---
 
-## Step 2 — Create cluster phase A (no instances)
+## Step 1 — Infra + build agent ISO
+
+Creates tags (first run), network, LBs, DNS, IAM, and the Object Storage bucket. Then runs `openshift-install` locally.
 
 ```bash
-cp option-2-agent-based/examples/02-create-cluster-phase-a.tfvars.example \
-  terraform-stacks/create-cluster/terraform.tfvars
-# edit REPLACE_* (pull secret, SSH key, OCIDs, region, domain)
-# public_ssh_key must be the full OpenSSH *public* key (ssh-ed25519 ... or ssh-rsa ...), not the private key
+export CLUSTER_NAME=jemdemo
+./option-2-agent-based/scripts/01_prepare_and_build_iso.sh
+```
 
+Or manually:
+
+```bash
 cd terraform-stacks/create-cluster
-terraform init
-terraform apply
-```
+terraform init && terraform apply \
+  -var="create_openshift_instances=false" \
+  -var="agent_iso_file_path="
 
-Important variables:
-
-- `installation_method = "Agent-based"`
-- `create_openshift_instances = false`
-
-Capture outputs into a work directory (used by step 3):
-
-```bash
-export CLUSTER_NAME=ocidemo   # must match cluster_name
+export CLUSTER_NAME=jemdemo
 export WORK_DIR=$PWD/../../option-2-agent-based/.work/$CLUSTER_NAME
-mkdir -p "$WORK_DIR/openshift"
-
-terraform output -raw agent_config > "$WORK_DIR/agent-config.yaml"
-terraform output -raw install_config > "$WORK_DIR/install-config.yaml"
-terraform output -raw dynamic_custom_manifest \
-  > "$WORK_DIR/openshift/oci-dynamic-custom-manifest.yaml"
+../../option-2-agent-based/scripts/03_build_agent_iso.sh
 ```
 
-(Or let `scripts/03_create_agent_iso_par.sh` read outputs directly from this stack directory.)
-
-If you change `public_ssh_key` (or other values that affect `install_config`) after phase A, run `terraform apply` again so outputs in state are refreshed — `terraform output` alone reads the last applied state. Then delete the cached workdir file and regenerate:
-
-```bash
-rm -f "$WORK_DIR/install-config.yaml"
-terraform output -raw install_config > "$WORK_DIR/install-config.yaml"
-```
-
-The `sshKey` line must start with `ssh-ed25519` or `ssh-rsa` (use `cat ~/.ssh/id_ed25519.pub`, not the private key).
+After the first successful apply, set `create_resource_attribution_tags = false` in `terraform.tfvars` (tags already exist).
 
 ---
 
-## Step 3 — Agent ISO (local build) + Object Storage (Terraform)
-
-Step 3 has two parts:
-
-| Part | Tool | OCI resources |
-| --- | --- | --- |
-| **3a** Build ISO | `openshift-install` on your laptop | none |
-| **3b** Upload + PAR | Terraform [`terraform/agent-iso-storage`](terraform/agent-iso-storage/) | bucket, object, pre-authenticated request |
-
-`openshift-install` cannot run inside Terraform; only the Object Storage pieces are managed as code.
-
-### 3a — Build the agent ISO locally
+## Step 2 — Upload ISO, PAR, and create VMs (same state)
 
 ```bash
-cd <repo-root>
-chmod +x option-2-agent-based/scripts/*.sh
-
 export CLUSTER_NAME=jemdemo
-export WORK_DIR=$PWD/option-2-agent-based/.work/$CLUSTER_NAME
-# optional: export OPENSHIFT_INSTALL=/path/to/openshift-install
-
-./option-2-agent-based/scripts/03_build_agent_iso.sh
+./option-2-agent-based/scripts/02_apply_cluster_install.sh
 ```
 
-If the ISO already exists from a prior run:
+This sets `agent_iso_file_path`, `create_openshift_instances = true`, runs `terraform apply`, and writes `$WORK_DIR/iso-par-url.txt` from the `agent_iso_par_url` output.
+
+Or manually:
 
 ```bash
-export SKIP_ISO_BUILD=1
-./option-2-agent-based/scripts/03_build_agent_iso.sh
-```
-
-### 3b — Bucket, ISO upload, and PAR (Terraform)
-
-```bash
-cp option-2-agent-based/terraform/agent-iso-storage/terraform.tfvars.example \
-   option-2-agent-based/terraform/agent-iso-storage/terraform.tfvars
-# edit region, compartment_ocid, object_storage_bucket
-
-export CLUSTER_NAME=jemdemo
-./option-2-agent-based/scripts/03_upload_agent_iso_tf.sh
-```
-
-Or apply manually:
-
-```bash
-cd option-2-agent-based/terraform/agent-iso-storage
-terraform init
+cd terraform-stacks/create-cluster
+# set in terraform.tfvars:
+#   create_openshift_instances = true
+#   agent_iso_file_path        = "/path/to/.work/jemdemo/agent.x86_64.iso"
+#   create_resource_attribution_tags = false
 terraform apply
-terraform output -raw agent_iso_par_url
-```
-
-Terraform creates:
-
-- `oci_objectstorage_bucket` — agent ISO bucket
-- `oci_objectstorage_object` — uploads `agent_iso_file_path`
-- `oci_objectstorage_preauthrequest` — ObjectRead PAR
-
-Outputs:
-
-- `agent_iso_par_url` → use as `openshift_image_source_uri` in phase B
-- Also written to `$WORK_DIR/iso-par-url.txt` by the upload script
-
-**Namespace:** Terraform looks up the tenancy namespace automatically (`data.oci_objectstorage_namespace`). You do not set `OCI_NAMESPACE` manually.
-
-### One-shot wrapper (3a + 3b)
-
-```bash
-./option-2-agent-based/scripts/03_create_agent_iso_par.sh
-```
-
-### Legacy: OCI CLI upload (not recommended)
-
-```bash
-export USE_OCI_CLI=1
-export OCI_NAMESPACE=...   # oci os ns get --query 'data' --raw-output
-export OCI_BUCKET=openshift-agent-iso
-export OCI_REGION=ap-singapore-1
-export OCI_COMPARTMENT_OCID=ocid1.compartment...
-./option-2-agent-based/scripts/03_create_agent_iso_par.sh
-```
-
-### Re-running step 3 after a successful ISO build
-
-`openshift-install` stores state under `$WORK_DIR` (`.openshift_install_state.json`) and removes `install-config.yaml`, `agent-config.yaml`, and `openshift/` after the first successful build. **Re-running the full script in the same directory often fails** with a generic configuration error.
-
-If `agent.x86_64.iso` already exists, skip the rebuild and run Terraform upload only:
-
-```bash
-export SKIP_ISO_BUILD=1
-./option-2-agent-based/scripts/03_build_agent_iso.sh   # optional sanity check
-./option-2-agent-based/scripts/03_upload_agent_iso_tf.sh
-```
-
-For a clean ISO rebuild (e.g. after changing cluster config), reset the workdir install state first:
-
-```bash
-rm -f "$WORK_DIR/.openshift_install_state.json" "$WORK_DIR/.openshift_install.log"
-cp -f "$WORK_DIR/agent-config.yaml.bak" "$WORK_DIR/agent-config.yaml"
-cp -f "$WORK_DIR/install-config.yaml.bak" "$WORK_DIR/install-config.yaml"
-mkdir -p "$WORK_DIR/openshift"
-terraform -chdir=terraform-stacks/create-cluster output -raw dynamic_custom_manifest \
-  > "$WORK_DIR/openshift/oci-dynamic-custom-manifest.yaml"
-unset SKIP_ISO_BUILD
-./option-2-agent-based/scripts/03_create_agent_iso_par.sh
 ```
 
 ---
 
-## Step 4 — Install cluster (phase B) and share kubeadmin password
+## Step 3 — OpenShift installs
+
+Instances boot from the agent ISO. Installation runs on the rendezvous node (`rendezvous_ip`).
 
 ```bash
-export CLUSTER_NAME=ocidemo
+export CLUSTER_NAME=jemdemo
 export WORK_DIR=$PWD/option-2-agent-based/.work/$CLUSTER_NAME
+export KUBECONFIG=$WORK_DIR/auth/kubeconfig
 
-# Uses terraform-stacks/create-cluster/terraform.tfvars (from step 2),
-# sets create_openshift_instances=true and openshift_image_source_uri=<PAR>
-./option-2-agent-based/scripts/04_apply_phase_b.sh
-```
-
-Or apply manually with [examples/04-create-cluster-phase-b.tfvars.example](examples/04-create-cluster-phase-b.tfvars.example) after pasting the PAR URL.
-
-After apply, instances boot from the agent ISO and installation proceeds (rendezvous node at `rendezvous_ip`). Monitor if needed:
-
-```bash
-ssh -i <key> core@10.0.16.20   # via bastion / VPN as appropriate
-journalctl -f
-```
-
-### Kubeadmin password
-
-Printed by `04_apply_phase_b.sh` and stored at:
-
-```text
-option-2-agent-based/.work/<cluster>/auth/kubeadmin-password
-option-2-agent-based/.work/<cluster>/auth/kubeconfig
-```
-
-```bash
-export KUBECONFIG=option-2-agent-based/.work/$CLUSTER_NAME/auth/kubeconfig
+./option-2-agent-based/scripts/03_monitor_install.sh
 oc get nodes
 oc get clusteroperators
 ```
 
-Console (once DNS or `/etc/hosts` from stack output `etc_hosts_entry` is set):
+Kubeadmin password: `$WORK_DIR/auth/kubeadmin-password` (created during step 1 ISO build).
+
+Console (after DNS or `/etc/hosts` from `terraform output etc_hosts_entry`):
 
 ```text
 https://console-openshift-console.apps.<cluster_name>.<zone_dns>
 ```
 
-User: `kubeadmin` — password from the file above.
+---
+
+## Key `terraform.tfvars` variables
+
+| Variable | Apply 1 (infra) | Apply 2 (install) |
+| --- | --- | --- |
+| `create_resource_attribution_tags` | `true` (once) | `false` |
+| `create_openshift_instances` | `false` | `true` |
+| `agent_iso_file_path` | `""` | path to `agent.x86_64.iso` |
+| `object_storage_bucket` | e.g. `openshift-agent-iso` | same |
+
+`openshift_image_source_uri` is **not** needed when `agent_iso_file_path` is set — Terraform creates the PAR.
 
 ---
 
@@ -261,19 +135,22 @@ User: `kubeadmin` — password from the file above.
 option-2-agent-based/
   README.md
   examples/
+    terraform.tfvars.example      # single config for create-cluster
   scripts/
+    01_prepare_and_build_iso.sh
+    02_apply_cluster_install.sh
     03_build_agent_iso.sh
-    03_upload_agent_iso_tf.sh
-    03_create_agent_iso_par.sh      # wrapper: 3a + 3b
-    03_create_agent_iso_par_cli.sh  # legacy OCI CLI path
-    04_apply_phase_b.sh
+    03_monitor_install.sh
   terraform/
-    agent-iso-storage/              # bucket + ISO object + PAR
-  .work/                            # gitignored
+    agent-iso-storage/            # deprecated; use create-cluster agent_iso.tf
 ```
+
+State file: `terraform-stacks/create-cluster/terraform.tfstate`
+
+---
 
 ## Notes
 
-- Do not change cluster name, base domain, rendezvous IP, or node counts after generating the agent ISO.
-- Phase A and phase B use the same Terraform state in `terraform-stacks/create-cluster` (normal second apply).
+- Do not change `cluster_name`, `zone_dns`, `rendezvous_ip`, or node counts after generating the agent ISO.
 - Never commit pull secrets, PAR URLs, or `auth/kubeadmin-password`.
+- Legacy 4-step scripts (`03_create_agent_iso_par.sh`, `04_apply_phase_b.sh`) wrap the new flow for compatibility.

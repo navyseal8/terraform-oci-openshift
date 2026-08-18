@@ -240,44 +240,30 @@ Upload manifests, assign Control plane / Worker roles, install, download `kubeco
 
 ---
 
-## Option 2 — Agent-based CLI (4 steps)
+## Option 2 — Agent-based CLI (3 steps, 1 Terraform state)
 
-No OCI Console form filling. Same Oracle Agent-based + Terraform sequence as [Oracle docs](https://docs.oracle.com/en-us/iaas/Content/openshift-on-oci/agent-installer-using-stack.htm), driven entirely from the CLI. Agent ISO is **built locally** with `openshift-install`, then uploaded to Object Storage (PAR).
+No OCI Console form filling. One Terraform state in `terraform-stacks/create-cluster` manages tags, network, LBs, DNS, IAM, agent ISO bucket/PAR, and VMs. Agent ISO is **built locally** with `openshift-install`.
 
 Full walkthrough: [option-2-agent-based/README.md](option-2-agent-based/README.md).
 
-See [Prerequisites setup](#prerequisites-setup) for OCI API credentials (`~/.oci/config`).
-
 ```text
-1. terraform apply  →  create-resource-attribution-tags
-2. terraform apply  →  create-cluster (Agent-based, instances=false)
-3. openshift-install agent create image  →  OCI PAR   (script)
-4. terraform apply  →  create-cluster (instances=true + PAR)  →  kubeadmin password
+1. terraform apply (infra) + openshift-install agent create image
+2. terraform apply (ISO upload, PAR, VMs)   — same state
+3. OpenShift agent install on nodes
 ```
 
 ```bash
-# Step 1
-cp option-2-agent-based/examples/01-attribution.tfvars.example \
-  terraform-stacks/create-resource-attribution-tags/terraform.tfvars
-cd terraform-stacks/create-resource-attribution-tags && terraform init && terraform apply
-
-# Step 2
-cp option-2-agent-based/examples/02-create-cluster-phase-a.tfvars.example \
+cp option-2-agent-based/examples/terraform.tfvars.example \
   terraform-stacks/create-cluster/terraform.tfvars
-cd ../create-cluster && terraform init && terraform apply
+# edit terraform.tfvars
 
-# Step 3 (local ISO + PAR)
-export CLUSTER_NAME=ocidemo
-export WORK_DIR=$PWD/../../option-2-agent-based/.work/$CLUSTER_NAME
-export OCI_NAMESPACE=... OCI_BUCKET=... OCI_REGION=... OCI_COMPARTMENT_OCID=...
-../../option-2-agent-based/scripts/03_create_agent_iso_par.sh
-
-# Step 4 (instances + print kubeadmin)
-../../option-2-agent-based/scripts/04_apply_phase_b.sh
-# password: option-2-agent-based/.work/$CLUSTER_NAME/auth/kubeadmin-password
+export CLUSTER_NAME=jemdemo
+./option-2-agent-based/scripts/01_prepare_and_build_iso.sh
+./option-2-agent-based/scripts/02_apply_cluster_install.sh
+# kubeadmin: option-2-agent-based/.work/$CLUSTER_NAME/auth/kubeadmin-password
 ```
 
-Requires `openshift-install` on the machine running step 3 (in addition to the tools in Prerequisites setup).
+Requires `openshift-install` on the machine running step 1.
 
 ---
 

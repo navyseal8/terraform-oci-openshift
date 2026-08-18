@@ -128,7 +128,7 @@ Step 3a complete (local ISO build)
   kubeadmin passwd: ${WORK_DIR}/auth/kubeadmin-password
   kubeconfig:       ${WORK_DIR}/auth/kubeconfig
 
-Next: upload bucket/object/PAR with Terraform:
-  ./option-2-agent-based/scripts/03_upload_agent_iso_tf.sh
+Next: upload ISO + create VMs with one Terraform apply (same state):
+  ./option-2-agent-based/scripts/02_apply_cluster_install.sh
 ============================================================
 EOF

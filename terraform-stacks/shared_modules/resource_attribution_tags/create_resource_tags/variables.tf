@@ -13,3 +13,8 @@ variable "openshift_attribution_tag_key" {
   type    = string
   default = "openshift-resource"
 }
+
+variable "openshift_attribution_tag_value" {
+  type    = string
+  default = "openshift-resource-infra"
+}
