@@ -210,6 +210,30 @@ echo "$par_url" | tee "$WORK_DIR/iso-par-url.txt"
 
 `preauth-request list` shows PAR metadata only, not the URL. Save `iso-par-url.txt` for step 4 (`openshift_image_source_uri`).
 
+### Re-running step 3 after a successful ISO build
+
+`openshift-install` stores state under `$WORK_DIR` (`.openshift_install_state.json`) and removes `install-config.yaml`, `agent-config.yaml`, and `openshift/` after the first successful build. **Re-running the full script in the same directory often fails** with a generic configuration error.
+
+If `agent.x86_64.iso` already exists, skip the rebuild and upload only:
+
+```bash
+export SKIP_ISO_BUILD=1
+./option-2-agent-based/scripts/03_create_agent_iso_par.sh
+```
+
+For a clean ISO rebuild (e.g. after changing cluster config), reset the workdir install state first:
+
+```bash
+rm -f "$WORK_DIR/.openshift_install_state.json" "$WORK_DIR/.openshift_install.log"
+cp -f "$WORK_DIR/agent-config.yaml.bak" "$WORK_DIR/agent-config.yaml"
+cp -f "$WORK_DIR/install-config.yaml.bak" "$WORK_DIR/install-config.yaml"
+mkdir -p "$WORK_DIR/openshift"
+terraform -chdir=terraform-stacks/create-cluster output -raw dynamic_custom_manifest \
+  > "$WORK_DIR/openshift/oci-dynamic-custom-manifest.yaml"
+unset SKIP_ISO_BUILD
+./option-2-agent-based/scripts/03_create_agent_iso_par.sh
+```
+
 ---
 
 ## Step 4 — Install cluster (phase B) and share kubeadmin password

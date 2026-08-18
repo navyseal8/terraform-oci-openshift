@@ -37,6 +37,8 @@ OCI_COMPARTMENT_OCID="${OCI_COMPARTMENT_OCID:?}"
 OBJECT_NAME="${OBJECT_NAME:-${CLUSTER_NAME}-agent.iso}"
 PAR_NAME="${PAR_NAME:-${CLUSTER_NAME}-agent-par}"
 PAR_EXPIRE_DAYS="${PAR_EXPIRE_DAYS:-7}"
+# Set SKIP_ISO_BUILD=1 to upload an existing agent*.iso and create PAR only (no openshift-install).
+SKIP_ISO_BUILD="${SKIP_ISO_BUILD:-0}"
 
 mkdir -p "$WORK_DIR/openshift"
 cd "$WORK_DIR"
@@ -100,20 +102,53 @@ validate_ssh_key_in_install_config
 cp -f agent-config.yaml agent-config.yaml.bak
 cp -f install-config.yaml install-config.yaml.bak
 
-log "Running: ${OPENSHIFT_INSTALL} agent create image --dir ${WORK_DIR}"
-"$OPENSHIFT_INSTALL" agent create image --dir "$WORK_DIR"
-
 ISO_PATH="$(find "$WORK_DIR" -maxdepth 1 -type f \( -name 'agent*.iso' -o -name '*.iso' \) | head -1)"
+
+if [[ "$SKIP_ISO_BUILD" == "1" ]]; then
+  [[ -n "$ISO_PATH" && -f "$ISO_PATH" ]] || {
+    echo "ERROR: SKIP_ISO_BUILD=1 but no agent ISO found under ${WORK_DIR}" >&2
+    exit 1
+  }
+  log "SKIP_ISO_BUILD=1 — using existing ISO: ${ISO_PATH}"
+else
+  log "Running: ${OPENSHIFT_INSTALL} agent create image --dir ${WORK_DIR}"
+  if ! "$OPENSHIFT_INSTALL" agent create image --dir "$WORK_DIR"; then
+    cat >&2 <<EOF
+ERROR: openshift-install failed. Common causes:
+  - Stale workdir state after a previous successful build (re-run in same directory)
+  - Invalid install-config.yaml / agent-config.yaml
+
+If agent*.iso already exists from an earlier run, upload only:
+  export SKIP_ISO_BUILD=1
+  ./option-2-agent-based/scripts/03_create_agent_iso_par.sh
+
+For a clean rebuild, remove openshift-install state first:
+  rm -f "${WORK_DIR}/.openshift_install_state.json" "${WORK_DIR}/.openshift_install.log"
+  cp -f "${WORK_DIR}/agent-config.yaml.bak" "${WORK_DIR}/agent-config.yaml"
+  cp -f "${WORK_DIR}/install-config.yaml.bak" "${WORK_DIR}/install-config.yaml"
+  terraform -chdir="${CLUSTER_TF_DIR}" output -raw dynamic_custom_manifest \\
+    > "${WORK_DIR}/openshift/oci-dynamic-custom-manifest.yaml"
+
+Details: ${WORK_DIR}/.openshift_install.log
+EOF
+    exit 1
+  fi
+
+  ISO_PATH="$(find "$WORK_DIR" -maxdepth 1 -type f \( -name 'agent*.iso' -o -name '*.iso' \) | head -1)"
+fi
+
 [[ -n "$ISO_PATH" && -f "$ISO_PATH" ]] || {
   echo "ERROR: no agent ISO found under ${WORK_DIR}" >&2
   exit 1
 }
 log "ISO ready: ${ISO_PATH}"
 
-[[ -f "$WORK_DIR/auth/kubeadmin-password" ]] || {
-  echo "ERROR: auth/kubeadmin-password missing after image create" >&2
-  exit 1
-}
+if [[ "$SKIP_ISO_BUILD" != "1" ]]; then
+  [[ -f "$WORK_DIR/auth/kubeadmin-password" ]] || {
+    echo "ERROR: auth/kubeadmin-password missing after image create" >&2
+    exit 1
+  }
+fi
 
 log "Ensuring Object Storage bucket ${OCI_BUCKET}"
 if ! oci os bucket get --namespace-name "$OCI_NAMESPACE" --bucket-name "$OCI_BUCKET" --region "$OCI_REGION" >/dev/null 2>&1; then
