@@ -402,7 +402,7 @@ variable "object_storage_namespace" {
 
 variable "object_storage_bucket" {
   type        = string
-  description = "Object Storage bucket for the agent ISO (Agent-based connected installs). Created by Terraform when installation_method is Agent-based."
+  description = "Object Storage bucket for agent install artifacts (ISO, disconnected webserver configs). Created when installation_method is Agent-based."
   default     = ""
 }
 

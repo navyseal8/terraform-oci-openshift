@@ -41,9 +41,21 @@ output "install_config" {
 }
 
 output "agent_iso_par_url" {
-  value       = local.agent_iso_upload_enabled ? local.openshift_image_source_uri : null
-  description = "Agent ISO PAR URL when agent_iso_file_path is set; use as openshift_image_source_uri reference."
+  value = local.agent_iso_upload_enabled ? local.openshift_image_source_uri : (
+    var.is_disconnected_installation && var.agent_iso_file_path != "" ? local.openshift_image_source_uri : null
+  )
+  description = "Agent ISO PAR URL when agent_iso_file_path is set."
   sensitive   = true
+}
+
+output "webserver_private_ip" {
+  value       = try(module.webserver[0].webserver_private_ip, null)
+  description = "Disconnected install webserver IP (bootArtifactsBaseURL)."
+}
+
+output "boot_artifacts_base_url" {
+  value       = var.is_disconnected_installation ? "http://${var.webserver_private_ip}" : null
+  description = "Rootfs must be served at <boot_artifacts_base_url>/agent.x86_64-rootfs.img"
 }
 
 output "stack_version" {

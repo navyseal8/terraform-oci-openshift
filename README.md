@@ -240,25 +240,26 @@ Upload manifests, assign Control plane / Worker roles, install, download `kubeco
 
 ---
 
-## Option 2 — Agent-based CLI (3 steps, 1 Terraform state)
+## Option 2 — Agent-based CLI (connected or disconnected)
 
-No OCI Console form filling. One Terraform state in `terraform-stacks/create-cluster` manages tags, network, LBs, DNS, IAM, agent ISO bucket/PAR, and VMs. Agent ISO is **built locally** with `openshift-install`.
+One Terraform state in `terraform-stacks/create-cluster`. Two modes: **connected** (`terraform.connected.tfvars.example`) and **disconnected / air-gapped** (`terraform.disconnected.tfvars.example`).
 
 Full walkthrough: [option-2-agent-based/README.md](option-2-agent-based/README.md).
 
 ```text
-1. terraform apply (infra) + openshift-install agent create image
-2. terraform apply (ISO upload, PAR, VMs)   — same state
+1. terraform apply (infra) + openshift-install agent create image [+ rootfs upload if disconnected]
+2. terraform apply (ISO, PAR, VMs)   — same state
 3. OpenShift agent install on nodes
 ```
 
 ```bash
-cp option-2-agent-based/examples/terraform.tfvars.example \
+cp option-2-agent-based/examples/terraform.connected.tfvars.example \
   terraform-stacks/create-cluster/terraform.tfvars
 # edit terraform.tfvars
 
 export CLUSTER_NAME=jemdemo
 ./option-2-agent-based/scripts/01_prepare_and_build_iso.sh
+# disconnected only: ./option-2-agent-based/scripts/02_upload_rootfs_disconnected.sh
 ./option-2-agent-based/scripts/02_apply_cluster_install.sh
 # kubeadmin: option-2-agent-based/.work/$CLUSTER_NAME/auth/kubeadmin-password
 ```

@@ -35,10 +35,13 @@ locals {
 
   openshift_resource_attribution_tag = var.create_resource_attribution_tags ? module.resource_attribution_tags_create[0].openshift_resource_attribution_tag : module.resource_attribution_tags_find[0].openshift_resource_attribution_tag
 
-  agent_iso_bucket_enabled = var.installation_method == "Agent-based" && var.object_storage_bucket != ""
-  agent_iso_upload_enabled = local.agent_iso_bucket_enabled && var.agent_iso_file_path != ""
+  agent_install_bucket_enabled = var.installation_method == "Agent-based" && var.object_storage_bucket != ""
+  agent_iso_bucket_enabled     = local.agent_install_bucket_enabled && !var.is_disconnected_installation
+  agent_iso_upload_enabled     = local.agent_iso_bucket_enabled && var.agent_iso_file_path != ""
   agent_iso_object_name    = var.agent_iso_object_name != "" ? var.agent_iso_object_name : "${var.cluster_name}-agent.iso"
   agent_iso_par_name       = var.agent_iso_par_name != "" ? var.agent_iso_par_name : "${var.cluster_name}-agent-par"
 
-  openshift_image_source_uri = local.agent_iso_upload_enabled ? "https://objectstorage.${var.region}.oraclecloud.com${oci_objectstorage_preauthrequest.agent_iso[0].access_uri}" : var.openshift_image_source_uri
+  openshift_image_source_uri = local.agent_iso_upload_enabled ? "https://objectstorage.${var.region}.oraclecloud.com${oci_objectstorage_preauthrequest.agent_iso[0].access_uri}" : (
+    var.is_disconnected_installation && var.agent_iso_file_path != "" ? "https://objectstorage.${var.region}.oraclecloud.com${oci_objectstorage_preauthrequest.agent_iso_disconnected[0].access_uri}" : var.openshift_image_source_uri
+  )
 }

@@ -1,64 +1,6 @@
-# Option 2 — single Terraform state (terraform-stacks/create-cluster/terraform.tfvars)
+# Use one of:
+#   examples/terraform.connected.tfvars.example     — nodes reach the internet
+#   examples/terraform.disconnected.tfvars.example   — air-gapped; webserver hosts rootfs
 #
-#   cp option-2-agent-based/examples/terraform.tfvars.example \
+#   cp option-2-agent-based/examples/terraform.connected.tfvars.example \
 #      terraform-stacks/create-cluster/terraform.tfvars
-#
-# One state file manages: attribution tags, VCN/LB/DNS/IAM, agent ISO bucket/upload/PAR, and VMs.
-
-tenancy_ocid     = "REPLACE_TENANCY_OCID"
-compartment_ocid = "REPLACE_COMPARTMENT_OCID"
-region           = "REPLACE_REGION"
-
-tag_namespace_compartment_ocid_resource_tagging = "REPLACE_COMPARTMENT_OCID"
-
-cluster_name        = "jemdemo"
-zone_dns            = "example.com"
-installation_method = "Agent-based"
-
-# First apply (infra): true. Later applies (after tags exist): false.
-create_resource_attribution_tags = true
-
-# --- Apply 1: infra only (network/LB/DNS/IAM + ISO bucket shell) ---
-create_openshift_instances = false
-agent_iso_file_path        = ""
-object_storage_bucket      = "openshift-agent-iso"
-
-# --- Apply 2: after local ISO build — set path and flip instances on ---
-# create_openshift_instances = true
-# agent_iso_file_path        = "/absolute/path/to/.work/jemdemo/agent.x86_64.iso"
-
-public_ssh_key = "REPLACE_SSH_PUBLIC_KEY"
-
-redhat_pull_secret = <<-EOT
-{"auths":{"cloud.openshift.com":{"auth":"...","email":"you@example.com"},...}}
-EOT
-
-rendezvous_ip = "10.0.16.20"
-
-is_disconnected_installation = false
-
-control_plane_count                = 3
-distribute_cp_instances_across_ads = true
-distribute_cp_instances_across_fds = true
-
-compute_count                           = 2
-distribute_compute_instances_across_ads = true
-distribute_compute_instances_across_fds = true
-
-control_plane_shape  = "VM.Standard.E5.Flex"
-control_plane_ocpu   = 4
-control_plane_memory = 24
-
-compute_shape  = "VM.Standard.E5.Flex"
-compute_ocpu   = 6
-compute_memory = 32
-
-vcn_cidr                = "10.0.0.0/16"
-public_cidr             = "10.0.0.0/20"
-private_cidr_ocp        = "10.0.16.0/20"
-private_cidr_bare_metal = "10.0.32.0/20"
-
-cluster_network_cidr_block = "10.128.0.0/14"
-service_network_cidr_block = "172.30.0.0/16"
-
-oci_driver_version = "v1.34.0"

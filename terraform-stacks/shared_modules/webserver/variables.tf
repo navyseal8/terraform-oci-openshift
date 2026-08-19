@@ -101,7 +101,14 @@ variable "object_storage_namespace" {
 
 variable "object_storage_bucket" {
   type        = string
-  description = "Name of the OCI Object Storage bucket to upload the OpenShift agent ISO image."
+  description = "Object Storage bucket for agent install artifacts (ISO, webserver configs). Created by Terraform when installation_method is Agent-based."
+  default     = ""
+}
+
+variable "object_storage_bucket_dependency" {
+  type        = any
+  default     = null
+  description = "Internal: ensures config objects are written after the install bucket exists."
 }
 
 variable "cluster_name" {

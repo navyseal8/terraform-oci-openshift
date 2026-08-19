@@ -1,131 +1,138 @@
 # Option 2 — Agent-based Installer (3 steps, 1 Terraform state)
 
-One Terraform state in [`terraform-stacks/create-cluster`](../terraform-stacks/create-cluster) manages:
+One Terraform state in [`terraform-stacks/create-cluster`](../terraform-stacks/create-cluster) manages attribution tags, network, LBs, DNS, IAM, Object Storage, and VMs.
 
-- Resource attribution tags (optional create on first apply)
-- VCN, subnets, NSGs, load balancers, DNS, IAM
-- Agent ISO bucket, object upload, and PAR
-- Custom images and compute instances
+Choose **connected** or **disconnected (air-gapped)** — same state file, different `terraform.tfvars`:
 
-`openshift-install` still runs on your laptop (not in Terraform).
+| | Connected | Disconnected (air-gapped) |
+| --- | --- | --- |
+| Example tfvars | [`examples/terraform.connected.tfvars.example`](examples/terraform.connected.tfvars.example) | [`examples/terraform.disconnected.tfvars.example`](examples/terraform.disconnected.tfvars.example) |
+| `is_disconnected_installation` | `false` | `true` |
+| Rootfs source | Downloaded from internet during install | HTTP webserver in VCN (`bootArtifactsBaseURL`) |
+| Extra OCI resource | — | Webserver VM (`webserver_private_ip`) |
+| ISO build | Local machine (`openshift-install`) | Bastion with internet (same tool) |
 
 ```text
-Step 1  terraform apply (infra) + build agent ISO locally
-Step 2  terraform apply (upload ISO, PAR, VMs)     — same state file
-Step 3  OpenShift agent install on nodes           — automatic; monitor with oc/SSH
+Step 1  terraform apply (infra) + build agent ISO locally (+ disconnected: upload rootfs)
+Step 2  terraform apply (ISO upload, PAR, VMs)     — same state
+Step 3  OpenShift agent install on nodes
 ```
 
-## Why not “ISO before any Terraform”?
-
-The agent ISO embeds Oracle CCM/CSI manifests that reference OCI resource OCIDs (VCN, subnets, load balancers). Those IDs only exist **after** an infra-only apply. Step 1 therefore does a small Terraform apply first, then builds the ISO from outputs.
-
-You still have **one state file** — step 2 continues the same `terraform-stacks/create-cluster` state.
-
----
-
-## Prerequisites
-
-| Requirement | Notes |
-| --- | --- |
-| `terraform` ≥ 1.0 | Single stack: `terraform-stacks/create-cluster` |
-| OCI API credentials | `~/.oci/config` |
-| `openshift-install` | Matching OCP version |
-| Red Hat pull secret | In `terraform.tfvars` |
+Oracle / Red Hat reference: [Agent-based Installer on OCI](https://docs.redhat.com/en/documentation/openshift_container_platform/4.19/html/installing_on_oci/installing-oci-agent-based-installer).
 
 ---
 
 ## Setup
 
 ```bash
-cp option-2-agent-based/examples/terraform.tfvars.example \
+# Connected
+cp option-2-agent-based/examples/terraform.connected.tfvars.example \
    terraform-stacks/create-cluster/terraform.tfvars
+
+# OR disconnected (air-gapped)
+cp option-2-agent-based/examples/terraform.disconnected.tfvars.example \
+   terraform-stacks/create-cluster/terraform.tfvars
+
 # edit OCIDs, region, cluster_name, zone_dns, public_ssh_key, pull secret, shapes
 ```
 
 ---
 
-## Step 1 — Infra + build agent ISO
+## Part A — Connected installation
 
-Creates tags (first run), network, LBs, DNS, IAM, and the Object Storage bucket. Then runs `openshift-install` locally.
+Nodes can reach the internet during install. No webserver VM. Terraform creates the Object Storage bucket, uploads the agent ISO, and creates a PAR.
+
+### Step 1 — Infra + build ISO
 
 ```bash
-export CLUSTER_NAME=jemdemo
+export CLUSTER_NAME=ocidemo
 ./option-2-agent-based/scripts/01_prepare_and_build_iso.sh
 ```
 
-Or manually:
+Creates network/LB/DNS/IAM/bucket (`create_openshift_instances=false`), then runs `openshift-install agent create image`.
+
+### Step 2 — Upload ISO, PAR, VMs
 
 ```bash
-cd terraform-stacks/create-cluster
-terraform init && terraform apply \
-  -var="create_openshift_instances=false" \
-  -var="agent_iso_file_path="
-
-export CLUSTER_NAME=jemdemo
-export WORK_DIR=$PWD/../../option-2-agent-based/.work/$CLUSTER_NAME
-../../option-2-agent-based/scripts/03_build_agent_iso.sh
-```
-
-After the first successful apply, set `create_resource_attribution_tags = false` in `terraform.tfvars` (tags already exist).
-
----
-
-## Step 2 — Upload ISO, PAR, and create VMs (same state)
-
-```bash
-export CLUSTER_NAME=jemdemo
+export CLUSTER_NAME=ocidemo
 ./option-2-agent-based/scripts/02_apply_cluster_install.sh
 ```
 
-This sets `agent_iso_file_path`, `create_openshift_instances = true`, runs `terraform apply`, and writes `$WORK_DIR/iso-par-url.txt` from the `agent_iso_par_url` output.
-
-Or manually:
+### Step 3 — Monitor
 
 ```bash
-cd terraform-stacks/create-cluster
-# set in terraform.tfvars:
-#   create_openshift_instances = true
-#   agent_iso_file_path        = "/path/to/.work/jemdemo/agent.x86_64.iso"
-#   create_resource_attribution_tags = false
-terraform apply
-```
-
----
-
-## Step 3 — OpenShift installs
-
-Instances boot from the agent ISO. Installation runs on the rendezvous node (`rendezvous_ip`).
-
-```bash
-export CLUSTER_NAME=jemdemo
+export CLUSTER_NAME=ocidemo
 export WORK_DIR=$PWD/option-2-agent-based/.work/$CLUSTER_NAME
 export KUBECONFIG=$WORK_DIR/auth/kubeconfig
-
 ./option-2-agent-based/scripts/03_monitor_install.sh
-oc get nodes
-oc get clusteroperators
-```
-
-Kubeadmin password: `$WORK_DIR/auth/kubeadmin-password` (created during step 1 ISO build).
-
-Console (after DNS or `/etc/hosts` from `terraform output etc_hosts_entry`):
-
-```text
-https://console-openshift-console.apps.<cluster_name>.<zone_dns>
 ```
 
 ---
 
-## Key `terraform.tfvars` variables
+## Part B — Disconnected (air-gapped) installation
+
+Cluster nodes **cannot** reach the internet. Terraform provisions a **webserver** VM that serves `agent.x86_64-rootfs.img` at `http://<webserver_private_ip>/` (`bootArtifactsBaseURL` in `agent-config.yaml`).
+
+### Step 1 — Infra + build ISO + upload rootfs
+
+```bash
+export CLUSTER_NAME=ocidemo
+./option-2-agent-based/scripts/01_prepare_and_build_iso.sh
+```
+
+Infra apply creates the webserver, bucket, and uploads install manifests to Object Storage.
+
+Upload the rootfs image to the webserver (from your bastion):
+
+```bash
+export CLUSTER_NAME=ocidemo
+./option-2-agent-based/scripts/02_upload_rootfs_disconnected.sh
+```
+
+Verify from a node subnet or jump host:
+
+```bash
+curl -I "http://$(terraform -chdir=terraform-stacks/create-cluster output -raw webserver_private_ip)/agent.x86_64-rootfs.img"
+```
+
+### Step 2 — Upload agent ISO, PAR, VMs
+
+Same script as connected — Terraform uploads the minimal agent ISO and creates VMs:
+
+```bash
+export CLUSTER_NAME=ocidemo
+./option-2-agent-based/scripts/02_apply_cluster_install.sh
+```
+
+### Step 3 — Monitor
+
+Same as connected (step 3 above).
+
+---
+
+## Key variables
+
+| Variable | Connected | Disconnected |
+| --- | --- | --- |
+| `is_disconnected_installation` | `false` | `true` |
+| `object_storage_bucket` | required | required |
+| `webserver_private_ip` | — | required (e.g. `10.0.0.200`) |
+| `webserver_shape` / `webserver_ocpus` | — | set per sizing |
+| `set_openshift_installer_version` | optional | recommended (`true` + pinned version) |
+
+### Apply 1 vs apply 2 toggles (both paths)
 
 | Variable | Apply 1 (infra) | Apply 2 (install) |
 | --- | --- | --- |
 | `create_resource_attribution_tags` | `true` (once) | `false` |
 | `create_openshift_instances` | `false` | `true` |
 | `agent_iso_file_path` | `""` | path to `agent.x86_64.iso` |
-| `object_storage_bucket` | e.g. `openshift-agent-iso` | same |
 
-`openshift_image_source_uri` is **not** needed when `agent_iso_file_path` is set — Terraform creates the PAR.
+---
+
+## Why infra apply before ISO build?
+
+The agent ISO embeds Oracle CCM/CSI manifests with OCI resource OCIDs (VCN, subnets, load balancers). Those exist only after the infra-only apply. Both connected and disconnected paths use the same constraint.
 
 ---
 
@@ -135,22 +142,22 @@ https://console-openshift-console.apps.<cluster_name>.<zone_dns>
 option-2-agent-based/
   README.md
   examples/
-    terraform.tfvars.example      # single config for create-cluster
+    terraform.connected.tfvars.example
+    terraform.disconnected.tfvars.example
   scripts/
     01_prepare_and_build_iso.sh
     02_apply_cluster_install.sh
+    02_upload_rootfs_disconnected.sh   # air-gapped only
     03_build_agent_iso.sh
     03_monitor_install.sh
-  terraform/
-    agent-iso-storage/            # deprecated; use create-cluster agent_iso.tf
 ```
 
-State file: `terraform-stacks/create-cluster/terraform.tfstate`
+State: `terraform-stacks/create-cluster/terraform.tfstate`
 
 ---
 
 ## Notes
 
 - Do not change `cluster_name`, `zone_dns`, `rendezvous_ip`, or node counts after generating the agent ISO.
+- Disconnected: ensure NSGs/security lists allow cluster nodes to reach `webserver_private_ip:80`.
 - Never commit pull secrets, PAR URLs, or `auth/kubeadmin-password`.
-- Legacy 4-step scripts (`03_create_agent_iso_par.sh`, `04_apply_phase_b.sh`) wrap the new flow for compatibility.

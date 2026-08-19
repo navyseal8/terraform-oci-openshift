@@ -1,0 +1,74 @@
+# Option 2 — Disconnected (air-gapped) Agent-based (single Terraform state)
+#
+#   cp option-2-agent-based/examples/terraform.disconnected.tfvars.example \
+#      terraform-stacks/create-cluster/terraform.tfvars
+#
+# Nodes have no outbound internet. Rootfs is served from the Terraform webserver VM.
+# Build the agent ISO on a bastion with internet, upload rootfs to the webserver, then apply install.
+
+tenancy_ocid     = "REPLACE_TENANCY_OCID"
+compartment_ocid = "REPLACE_COMPARTMENT_OCID"
+region           = "REPLACE_REGION"
+
+tag_namespace_compartment_ocid_resource_tagging = "REPLACE_COMPARTMENT_OCID"
+
+cluster_name        = "ocidemo"
+zone_dns            = "example.com"
+installation_method = "Agent-based"
+
+create_resource_attribution_tags = true
+is_disconnected_installation     = true
+
+# Apply 1: infra + webserver + bucket (configs uploaded to Object Storage)
+create_openshift_instances = false
+agent_iso_file_path        = ""
+object_storage_bucket      = "openshift-agent-iso"
+# object_storage_namespace left empty — Terraform looks it up automatically
+
+webserver_private_ip = "10.0.0.200" # must match bootArtifactsBaseURL in agent-config
+webserver_shape      = "VM.Standard.E5.Flex"
+webserver_ocpus      = 2
+webserver_memory_in_gbs = 8
+# webserver_image_source_id = "ocid1.image..." # OEL 9 in your region
+
+set_openshift_installer_version = true
+openshift_installer_version       = "4.19.24" # pin version for reproducible ISO on bastion
+
+# Apply 2: after ISO build + rootfs upload to webserver
+# create_openshift_instances = true
+# agent_iso_file_path        = "/path/to/.work/ocidemo/agent.x86_64.iso"
+# create_resource_attribution_tags = false
+
+public_ssh_key = "REPLACE_SSH_PUBLIC_KEY"
+
+redhat_pull_secret = <<-EOT
+{"auths":{"cloud.openshift.com":{"auth":"...","email":"you@example.com"},...}}
+EOT
+
+rendezvous_ip = "10.0.16.20"
+
+control_plane_count                = 3
+distribute_cp_instances_across_ads = true
+distribute_cp_instances_across_fds = true
+
+compute_count                           = 2
+distribute_compute_instances_across_ads = true
+distribute_compute_instances_across_fds = true
+
+control_plane_shape  = "VM.Standard.E5.Flex"
+control_plane_ocpu   = 4
+control_plane_memory = 24
+
+compute_shape  = "VM.Standard.E5.Flex"
+compute_ocpu   = 6
+compute_memory = 32
+
+vcn_cidr                = "10.0.0.0/16"
+public_cidr             = "10.0.0.0/20"
+private_cidr_ocp        = "10.0.16.0/20"
+private_cidr_bare_metal = "10.0.32.0/20"
+
+cluster_network_cidr_block = "10.128.0.0/14"
+service_network_cidr_block = "172.30.0.0/16"
+
+oci_driver_version = "v1.34.0"

@@ -164,8 +164,9 @@ module "webserver" {
   public_ssh_key                = var.public_ssh_key
   openshift_installer_version   = local.openshift_installer_version
   cluster_name                  = var.cluster_name
-  object_storage_namespace      = var.object_storage_namespace
+  object_storage_namespace      = local.object_storage_namespace
   object_storage_bucket         = var.object_storage_bucket
+  object_storage_bucket_dependency = length(oci_objectstorage_bucket.agent_install) > 0 ? oci_objectstorage_bucket.agent_install[0] : null
   agent_config                  = module.manifests.agent_config
   install_config                = module.manifests.install_config
   dynamic_custom_manifest       = module.manifests.dynamic_custom_manifest
@@ -176,6 +177,8 @@ module "webserver" {
 
   // Dependency on networks
   webserver_subnet_id = module.network.op_subnet_public # depend on variable
+
+  depends_on = [oci_objectstorage_bucket.agent_install]
 }
 
 module "compute" {

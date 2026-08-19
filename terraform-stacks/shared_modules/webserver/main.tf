@@ -19,6 +19,8 @@ resource "oci_objectstorage_object" "agent_config" {
   object       = "${var.cluster_name}-agentBasedInstallation/agent-config.yaml"
   content      = var.agent_config
   content_type = "text/yaml"
+
+  depends_on = [var.object_storage_bucket_dependency]
 }
 
 resource "oci_objectstorage_object" "install_config" {
@@ -27,6 +29,8 @@ resource "oci_objectstorage_object" "install_config" {
   object       = "${var.cluster_name}-agentBasedInstallation/install-config.yaml"
   content      = var.install_config
   content_type = "text/yaml"
+
+  depends_on = [var.object_storage_bucket_dependency]
 }
 
 resource "oci_objectstorage_object" "dynamic_custom_manifest" {
@@ -35,6 +39,8 @@ resource "oci_objectstorage_object" "dynamic_custom_manifest" {
   object       = "${var.cluster_name}-agentBasedInstallation/openshift/dynamic-custom-manifest.yaml"
   content      = var.dynamic_custom_manifest
   content_type = "text/yaml"
+
+  depends_on = [var.object_storage_bucket_dependency]
 }
 
 resource "time_sleep" "wait_for_objects" {
