@@ -52,6 +52,14 @@ distribute_cp_instances_across_ads = true
 distribute_cp_instances_across_fds = true
 
 compute_count                           = 2
+# When use_autoscaling_operator = true, compute_count is ignored (set to 0).
+# use_autoscaling_operator              = true
+# autoscaler_node_minimum_count         = 1
+# autoscaler_node_maximum_count         = 5
+# autoscaler_node_shape                 = "VM.Standard.E5.Flex"
+# autoscaler_node_ocpus                 = 6
+# autoscaler_node_memory                = 32
+# autoscaler_node_image_source_uri      = ""  # defaults to agent ISO PAR when empty
 distribute_compute_instances_across_ads = true
 distribute_compute_instances_across_fds = true
 

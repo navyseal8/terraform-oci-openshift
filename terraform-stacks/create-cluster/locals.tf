@@ -44,4 +44,9 @@ locals {
   openshift_image_source_uri = local.agent_iso_upload_enabled ? "https://objectstorage.${var.region}.oraclecloud.com${oci_objectstorage_preauthrequest.agent_iso[0].access_uri}" : (
     var.is_disconnected_installation && var.agent_iso_file_path != "" ? "https://objectstorage.${var.region}.oraclecloud.com${oci_objectstorage_preauthrequest.agent_iso_disconnected[0].access_uri}" : var.openshift_image_source_uri
   )
+
+  # Reuse the agent ISO PAR for autoscaler node image import unless overridden.
+  autoscaler_node_image_source_uri = var.autoscaler_node_image_source_uri != "" ? var.autoscaler_node_image_source_uri : (
+    var.use_autoscaling_operator ? local.openshift_image_source_uri : ""
+  )
 }

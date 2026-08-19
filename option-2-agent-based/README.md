@@ -58,13 +58,16 @@ export CLUSTER_NAME=ocidemo
 ./option-2-agent-based/scripts/02_apply_cluster_install.sh
 ```
 
-### Step 3 — Monitor
+### Step 3 — Monitor (+ autoscaling if enabled)
 
 ```bash
 export CLUSTER_NAME=ocidemo
 export WORK_DIR=$PWD/option-2-agent-based/.work/$CLUSTER_NAME
 export KUBECONFIG=$WORK_DIR/auth/kubeconfig
 ./option-2-agent-based/scripts/03_monitor_install.sh
+
+# when use_autoscaling_operator = true:
+./option-2-agent-based/scripts/03_verify_autoscaling.sh
 ```
 
 ---
@@ -110,6 +113,121 @@ Same as connected (step 3 above).
 
 ---
 
+### Step 3 — Monitor (+ autoscaling if enabled)
+
+Same as connected — include `03_verify_autoscaling.sh` when autoscaling is enabled.
+
+---
+
+## OCI Autoscaling (both connected and disconnected)
+
+The vendored stack can deploy the **OCI OpenShift Autoscaler Operator** (CAPOCI + cluster-autoscaler). It uses **instance principal** on control plane nodes to call OCI APIs and create/delete worker instances.
+
+### Enable in `terraform.tfvars`
+
+Set before **apply 1** (manifests are baked into the agent ISO):
+
+```hcl
+use_autoscaling_operator      = true
+autoscaler_node_minimum_count = 1    # recommend >= 1 for a usable cluster
+autoscaler_node_maximum_count = 5
+autoscaler_node_shape         = "VM.Standard.E5.Flex"
+autoscaler_node_ocpus         = 6
+autoscaler_node_memory        = 32
+# autoscaler_pool_identifier  = ""   # optional, max 5 chars
+
+# Reuses the agent ISO PAR automatically when left empty:
+autoscaler_node_image_source_uri = ""
+```
+
+When `use_autoscaling_operator = true`, **`compute_count` is ignored** (workers are autoscaled, not statically provisioned).
+
+Autoscaling manifests (`08-autoscaling-operator.yml` + runtime bundle) are included in `dynamic_custom_manifest` at ISO build time. After install converges, the operator activates CAPOCI and creates `OCIClusterAutoscaler` resources.
+
+### Step 3 — Verify autoscaling
+
+```bash
+export CLUSTER_NAME=ocidemo
+export KUBECONFIG=$PWD/option-2-agent-based/.work/$CLUSTER_NAME/auth/kubeconfig
+./option-2-agent-based/scripts/03_verify_autoscaling.sh
+```
+
+Check pods:
+
+```bash
+oc get pods -n oci-openshift-autoscaling-operator
+oc get ociclusterautoscaler -n oci-openshift-autoscaling-operator
+```
+
+---
+
+## OCI IAM permissions for autoscaling
+
+Terraform **creates** the dynamic groups and policies below in `shared_modules/iam/`. The autoscaler (CAPOCI controller on control plane nodes) authenticates via **instance principal** using the control plane dynamic group.
+
+### Dynamic groups (tenancy level)
+
+| Dynamic group | Matching rule |
+| --- | --- |
+| `{cluster_name}_control_plane_nodes` | Instances in cluster compartment tagged `instance_role=control_plane` |
+| `{cluster_name}_compute_nodes` | Instances in cluster compartment tagged `instance_role=compute` |
+
+CAPOCI runs on the control plane and uses **`{cluster_name}_control_plane_nodes`**.
+
+### Policies created by Terraform
+
+**Cluster compartment** (`policy_openshift_control_plane_nodes`):
+
+```text
+Allow dynamic-group <cluster>_control_plane_nodes to manage volume-family in compartment id <compartment_ocid>
+Allow dynamic-group <cluster>_control_plane_nodes to manage instance-family in compartment id <compartment_ocid>
+Allow dynamic-group <cluster>_control_plane_nodes to manage security-lists in compartment id <compartment_ocid>
+Allow dynamic-group <cluster>_control_plane_nodes to manage virtual-network-family in compartment id <compartment_ocid>
+Allow dynamic-group <cluster>_control_plane_nodes to manage load-balancers in compartment id <compartment_ocid>
+Allow dynamic-group <cluster>_control_plane_nodes to manage objects in compartment id <compartment_ocid>
+```
+
+**Tenancy** (`policy_openshift_control_plane_nodes_tags`):
+
+```text
+Allow dynamic-group <cluster>_control_plane_nodes to use tag-namespaces in tenancy
+```
+
+**VCN / subnet compartment** (only when VCN or subnets live outside the cluster compartment):
+
+```text
+Allow dynamic-group <cluster>_control_plane_nodes to manage security-lists in compartment id <vcn_compartment_ocid>
+Allow dynamic-group <cluster>_control_plane_nodes to manage virtual-network-family in compartment id <vcn_compartment_ocid>
+Allow dynamic-group <cluster>_control_plane_nodes to manage virtual-network-family in compartment id <subnet_compartment_ocid>
+```
+
+### Resource attribution tags (mandatory)
+
+Autoscaling nodes must carry attribution tags. Before any cluster apply:
+
+1. `openshift-tags` namespace + `openshift-resource=openshift-resource-infra` defined tag must exist (`create_resource_attribution_tags = true` on first apply).
+2. Control plane dynamic group must **`use tag-namespaces`** in the compartment that owns those tags (Terraform policy above).
+
+### Terraform operator permissions (who runs `terraform apply`)
+
+The identity running Terraform needs standard `create-cluster` permissions plus ability to **import custom images** from Object Storage PAR URLs (agent ISO and autoscaler image).
+
+---
+
+## Connected vs disconnected — autoscaling differences
+
+| Concern | Connected | Disconnected (air-gapped) |
+| --- | --- | --- |
+| **OCI API access from control plane** | Instance principal → OCI APIs (route via NAT or service gateway) | **Same IAM policies**; nodes must reach OCI endpoints (use **service gateway** for `oci-*` services) |
+| **CAPOCI / operator images** | Pulled from `quay.io`, `ghcr.io`, `github.com` during install | Must be **mirrored** to internal registry or pre-loaded; activate job fetches CAPOCI YAML from GitHub |
+| **cluster-autoscaler chart** | Fetched from `kubernetes.github.io/autoscaler` by operator | Mirror Helm chart repo or vendor offline |
+| **Autoscaler node image** | Terraform imports from agent ISO PAR (`autoscaler_node_image_source_uri`) | Same — PAR/object in your bucket; no public internet needed for import |
+| **BM autoscale shapes** | Set `autoscaler_node_shape` to `BM.*`; needs bare metal subnet + iSCSI tags | Same; ensure webserver/rootfs path still valid |
+
+**Summary:** OCI **IAM/instance-principal permissions are identical**. The difference is **network egress**: connected clusters reach public registries directly; disconnected clusters need mirrors and service-gateway access to OCI APIs.
+
+---
+
 ## Key variables
 
 | Variable | Connected | Disconnected |
@@ -127,6 +245,8 @@ Same as connected (step 3 above).
 | `create_resource_attribution_tags` | `true` (once) | `false` |
 | `create_openshift_instances` | `false` | `true` |
 | `agent_iso_file_path` | `""` | path to `agent.x86_64.iso` |
+| `use_autoscaling_operator` | set before apply 1 | unchanged |
+| `autoscaler_node_*` | set before apply 1 | unchanged |
 
 ---
 
@@ -150,6 +270,7 @@ option-2-agent-based/
     02_upload_rootfs_disconnected.sh   # air-gapped only
     03_build_agent_iso.sh
     03_monitor_install.sh
+    03_verify_autoscaling.sh
 ```
 
 State: `terraform-stacks/create-cluster/terraform.tfstate`
@@ -159,5 +280,6 @@ State: `terraform-stacks/create-cluster/terraform.tfstate`
 ## Notes
 
 - Do not change `cluster_name`, `zone_dns`, `rendezvous_ip`, or node counts after generating the agent ISO.
+- When autoscaling is enabled, set `autoscaler_node_minimum_count >= 1` unless you intentionally start with zero workers.
 - Disconnected: ensure NSGs/security lists allow cluster nodes to reach `webserver_private_ip:80`.
 - Never commit pull secrets, PAR URLs, or `auth/kubeadmin-password`.

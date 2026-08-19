@@ -85,7 +85,7 @@ module "image" {
 
   // autoscaler image generation
   use_autoscaling_operator         = var.use_autoscaling_operator
-  autoscaler_node_image_source_uri = var.autoscaler_node_image_source_uri
+  autoscaler_node_image_source_uri = local.autoscaler_node_image_source_uri
   autoscaler_node_shape            = var.autoscaler_node_shape
 
   // Depedency on tags
