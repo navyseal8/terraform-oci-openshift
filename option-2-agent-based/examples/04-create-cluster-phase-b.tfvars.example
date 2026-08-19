@@ -4,7 +4,7 @@
 #   create_openshift_instances  = true
 #   openshift_image_source_uri  = "<PAR from step 3>"
 #
-# Or run scripts/04_apply_phase_b.sh which patches the PAR automatically.
+# Run this as pipeline Terraform phase B (scripts no longer run terraform apply).
 #
 # Do not change cluster_name, zone_dns, rendezvous_ip, or node counts vs phase A / agent ISO.
 

@@ -5,7 +5,6 @@ set -euo pipefail
 CLUSTER_NAME="${CLUSTER_NAME:?Set CLUSTER_NAME}"
 REPO_ROOT="${REPO_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
 WORK_DIR="${WORK_DIR:-${REPO_ROOT}/option-2-agent-based/.work/${CLUSTER_NAME}}"
-CLUSTER_TF_DIR="${CLUSTER_TF_DIR:-${REPO_ROOT}/terraform-stacks/create-cluster}"
 
 if [[ -f "${WORK_DIR}/auth/kubeconfig" ]]; then
   export KUBECONFIG="${WORK_DIR}/auth/kubeconfig"
@@ -41,11 +40,6 @@ echo
 echo "=== Machines / nodes ==="
 oc get machines -A 2>/dev/null | head -20 || true
 oc get nodes 2>/dev/null || true
-
-if terraform -chdir="$CLUSTER_TF_DIR" output -raw autoscaling_manifest >/dev/null 2>&1; then
-  echo
-  echo "autoscaling_manifest output is available from Terraform (post-install bundle)."
-fi
 
 cat <<'EOF'
 

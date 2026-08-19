@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Step 3a — Build agent ISO locally with openshift-install (no OCI API calls).
+# Build agent ISO from prepared configs (no terraform commands).
 set -euo pipefail
 
 need_cmd() {
@@ -15,36 +15,24 @@ need_cmd "$OPENSHIFT_INSTALL"
 CLUSTER_NAME="${CLUSTER_NAME:?Set CLUSTER_NAME}"
 REPO_ROOT="${REPO_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
 WORK_DIR="${WORK_DIR:-${REPO_ROOT}/option-2-agent-based/.work/${CLUSTER_NAME}}"
-CLUSTER_TF_DIR="${CLUSTER_TF_DIR:-${REPO_ROOT}/terraform-stacks/create-cluster}"
-CLUSTER_STATE="${CLUSTER_STATE:-}"
 SKIP_ISO_BUILD="${SKIP_ISO_BUILD:-0}"
 
 mkdir -p "$WORK_DIR/openshift"
 cd "$WORK_DIR"
 
-tf_out() {
-  local name="$1"
-  if [[ -n "$CLUSTER_STATE" ]]; then
-    terraform -chdir="$CLUSTER_TF_DIR" output -state="$CLUSTER_STATE" -raw "$name"
-  else
-    terraform -chdir="$CLUSTER_TF_DIR" output -raw "$name"
-  fi
-}
-
 log() { printf '[%s] %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$*"; }
 
-if [[ ! -f agent-config.yaml ]]; then
-  log "Writing agent-config.yaml from terraform output"
-  tf_out agent_config >agent-config.yaml
-fi
-if [[ ! -f install-config.yaml ]]; then
-  log "Writing install-config.yaml from terraform output"
-  tf_out install_config >install-config.yaml
-fi
-if [[ ! -f openshift/oci-dynamic-custom-manifest.yaml ]]; then
-  log "Writing Oracle CCM/CSI manifest into openshift/"
-  tf_out dynamic_custom_manifest >openshift/oci-dynamic-custom-manifest.yaml
-fi
+require_file() {
+  local f="$1"
+  [[ -f "$f" ]] || {
+    echo "ERROR: missing ${WORK_DIR}/$f" >&2
+    exit 1
+  }
+}
+
+require_file "agent-config.yaml"
+require_file "install-config.yaml"
+require_file "openshift/oci-dynamic-custom-manifest.yaml"
 
 validate_ssh_key_in_install_config() {
   local key
@@ -63,9 +51,8 @@ ERROR: invalid public_ssh_key in install-config.yaml (sshKey field).
     ssh-ed25519 AAAA... you@host
     ssh-rsa AAAA... you@host
 
-  Fix terraform-stacks/create-cluster/terraform.tfvars, run terraform apply, then:
-    rm -f "${WORK_DIR}/install-config.yaml"
-    terraform -chdir="${CLUSTER_TF_DIR}" output -raw install_config > "${WORK_DIR}/install-config.yaml"
+  Re-generate install-config.yaml from your pipeline Terraform outputs, then rerun:
+    ./option-2-agent-based/scripts/03_build_agent_iso.sh
 EOF
   exit 1
 }
@@ -97,9 +84,6 @@ For a clean rebuild:
   rm -f "${WORK_DIR}/.openshift_install_state.json" "${WORK_DIR}/.openshift_install.log"
   cp -f "${WORK_DIR}/agent-config.yaml.bak" "${WORK_DIR}/agent-config.yaml"
   cp -f "${WORK_DIR}/install-config.yaml.bak" "${WORK_DIR}/install-config.yaml"
-  mkdir -p "${WORK_DIR}/openshift"
-  terraform -chdir="${CLUSTER_TF_DIR}" output -raw dynamic_custom_manifest \\
-    > "${WORK_DIR}/openshift/oci-dynamic-custom-manifest.yaml"
 EOF
     exit 1
   fi
@@ -123,12 +107,14 @@ fi
 
 cat <<EOF
 ============================================================
-Step 3a complete (local ISO build)
+ISO build complete
   ISO:              ${ISO_PATH}
   kubeadmin passwd: ${WORK_DIR}/auth/kubeadmin-password
   kubeconfig:       ${WORK_DIR}/auth/kubeconfig
 
-Next: upload ISO + create VMs with one Terraform apply (same state):
-  ./option-2-agent-based/scripts/02_apply_cluster_install.sh
+Next: run your pipeline Terraform stage with:
+  -var='create_openshift_instances=true'
+  -var='create_resource_attribution_tags=false'
+  -var='agent_iso_file_path=${ISO_PATH}'
 ============================================================
 EOF

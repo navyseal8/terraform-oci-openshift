@@ -6,7 +6,7 @@
 #   cd option-2-agent-based/terraform/agent-iso-storage
 #   terraform init && terraform apply
 #
-# Then use output agent_iso_par_url for phase B (or run 04_apply_phase_b.sh).
+# Then use output agent_iso_par_url in pipeline Terraform phase B.
 
 region           = "REPLACE_REGION"
 compartment_ocid = "REPLACE_COMPARTMENT_OCID"

@@ -1,7 +1,12 @@
 #!/usr/bin/env bash
-# Deprecated wrapper — use 01_prepare_and_build_iso.sh + 02_apply_cluster_install.sh
+# Deprecated: pipeline owns terraform applies.
 set -euo pipefail
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-echo "NOTE: use scripts/01_prepare_and_build_iso.sh and scripts/02_apply_cluster_install.sh" >&2
-"${SCRIPT_DIR}/01_prepare_and_build_iso.sh"
-"${SCRIPT_DIR}/02_apply_cluster_install.sh"
+
+cat >&2 <<'EOF'
+ERROR: 03_create_agent_iso_par.sh is retired.
+
+Use:
+  1) scripts/03_build_agent_iso.sh to build ISO
+  2) pipeline Terraform phase B with -var='agent_iso_file_path=/path/to/agent.x86_64.iso'
+EOF
+exit 1

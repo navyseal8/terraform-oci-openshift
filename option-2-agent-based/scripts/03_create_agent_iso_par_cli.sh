@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Legacy step 3 — build ISO + upload/PAR via OCI CLI (not Terraform).
-# Prefer: 03_build_agent_iso.sh + 03_upload_agent_iso_tf.sh
+# Legacy helper — build ISO + upload/PAR via OCI CLI (not Terraform).
+# Prefer pipeline Terraform phase B unless you intentionally use OCI CLI upload.
 set -euo pipefail
 
 need_cmd() {
@@ -89,6 +89,9 @@ Step 3 complete (OCI CLI upload + PAR)
   PAR URL:          ${par_url}
   PAR file:         ${WORK_DIR}/iso-par-url.txt
 
-Next: run scripts/04_apply_phase_b.sh
+Next: run your pipeline Terraform phase B with:
+  -var='create_openshift_instances=true'
+  -var='create_resource_attribution_tags=false'
+  -var='agent_iso_file_path=${ISO_PATH}'
 ============================================================
 EOF
