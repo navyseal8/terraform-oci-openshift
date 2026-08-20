@@ -37,7 +37,7 @@ openshift_installer_version       = "4.19.24" # pin version for reproducible ISO
 # Apply 2: after ISO build + rootfs upload to webserver
 # create_openshift_instances = true
 # agent_iso_file_path        = "/path/to/.work/ocidemo/agent.x86_64.iso"
-# create_resource_attribution_tags = false
+# Keep create_resource_attribution_tags = true (do not set false; that deletes openshift-tags).
 
 public_ssh_key = "REPLACE_SSH_PUBLIC_KEY"
 

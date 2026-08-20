@@ -24,7 +24,7 @@ object_storage_bucket      = "openshift-agent-iso"
 # Apply 2: after local ISO build
 # create_openshift_instances = true
 # agent_iso_file_path        = "/path/to/.work/ocidemo/agent.x86_64.iso"
-# create_resource_attribution_tags = false
+# Keep create_resource_attribution_tags = true (do not set false; that deletes openshift-tags).
 
 public_ssh_key = "REPLACE_SSH_PUBLIC_KEY"
 

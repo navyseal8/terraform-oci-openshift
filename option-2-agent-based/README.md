@@ -126,7 +126,6 @@ ISO_PATH="$(cat option-2-agent-based/.work/ocidemo/agent-iso-path.txt)"
 
 terraform -chdir=terraform-stacks/create-cluster apply -input=false -auto-approve \
   -var='create_openshift_instances=true' \
-  -var='create_resource_attribution_tags=false' \
   -var="agent_iso_file_path=${ISO_PATH}"
 ```
 
@@ -165,6 +164,9 @@ When autoscaling is enabled:
 
 ## Notes
 
+- Keep `create_resource_attribution_tags = true` in `terraform.tfvars` for all applies.
+  Do **not** set it to `false` with `-var` on later phases — that destroys the `openshift-tags`
+  namespace in OCI and breaks the next apply.
 - Keep `cluster_name` and `zone_dns` consistent between Terraform and installer outputs.
 - Do not change node topology after ISO generation unless you regenerate configs and ISO.
 - Never commit pull secrets, PAR URLs, kubeadmin password, or kubeconfig artifacts.

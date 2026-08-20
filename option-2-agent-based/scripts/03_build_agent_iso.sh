@@ -114,7 +114,6 @@ ISO build complete
 
 Next: run your pipeline Terraform stage with:
   -var='create_openshift_instances=true'
-  -var='create_resource_attribution_tags=false'
   -var='agent_iso_file_path=${ISO_PATH}'
 ============================================================
 EOF
