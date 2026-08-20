@@ -3,12 +3,14 @@
 Terraform execution is intentionally outside shell scripts so it can run in CI/CD pipelines.  
 Shell scripts in this folder are only for ISO preparation, disconnected rootfs upload, and post-install monitoring.
 
-Use one Terraform state in `terraform-stacks/create-cluster` with two applies:
+Use **two Terraform states**:
 
-- **Phase A (infra only):** network/LB/DNS/IAM/Object Storage (+ webserver for disconnected)
-- **Phase B (cluster install):** upload agent ISO, create image/PAR, create OpenShift instances
+1. **`terraform-stacks/create-resource-attribution-tags`** — once per tenancy (Step 0)
+2. **`terraform-stacks/create-cluster`** — per cluster, with two applies:
+   - **Phase A (infra only):** network/LB/DNS/IAM/Object Storage (+ webserver for disconnected)
+   - **Phase B (cluster install):** upload agent ISO, create image/PAR, create OpenShift instances
 
-Connected and disconnected installs use the same Terraform stack with different tfvars.
+Connected and disconnected installs use the same `create-cluster` stack with different tfvars.
 
 ---
 
@@ -24,7 +26,45 @@ Connected and disconnected installs use the same Terraform stack with different 
 
 ---
 
-## 0) Prepare tfvars
+## 0) Create resource attribution tags (once per tenancy)
+
+Run this **once** before any cluster. It uses a **separate Terraform state** so later
+`create-cluster` applies cannot delete `openshift-tags`.
+
+```bash
+cp option-2-agent-based/examples/01-attribution.tfvars.example \
+  terraform-stacks/create-resource-attribution-tags/terraform.tfvars
+
+# edit tenancy_ocid and tag_namespace_compartment_ocid_resource_tagging
+
+terraform -chdir=terraform-stacks/create-resource-attribution-tags init -input=false
+terraform -chdir=terraform-stacks/create-resource-attribution-tags apply -input=false -auto-approve
+```
+
+Verify:
+
+```bash
+COMPARTMENT_OCID="<tag_namespace_compartment_ocid_resource_tagging>"
+
+oci iam tag-namespace list \
+  --compartment-id "$COMPARTMENT_OCID" \
+  --region ap-singapore-1 \
+  --query 'data[?name==`openshift-tags`].{name:name,state:"lifecycle-state"}' \
+  --output table
+```
+
+In `terraform-stacks/create-cluster/terraform.tfvars`, always keep:
+
+```hcl
+create_resource_attribution_tags = false
+tag_namespace_compartment_ocid_resource_tagging = "<same compartment OCID as step 0>"
+```
+
+Do **not** set `create_resource_attribution_tags = true` in `create-cluster` when using this step.
+
+---
+
+## 1) Prepare cluster tfvars
 
 ```bash
 # Connected
@@ -45,7 +85,7 @@ Update required values in `terraform.tfvars`:
 
 ---
 
-## 1) Terraform phase A (pipeline)
+## 2) Terraform phase A (pipeline)
 
 Run phase A from pipeline (or manually in the same way):
 
@@ -60,7 +100,7 @@ This creates infrastructure and produces outputs used for ISO generation.
 
 ---
 
-## 2) Export Terraform outputs to Option 2 work directory
+## 3) Export Terraform outputs to Option 2 work directory
 
 ```bash
 export CLUSTER_NAME=ocidemo
@@ -77,7 +117,7 @@ terraform -chdir=terraform-stacks/create-cluster output -raw dynamic_custom_mani
 
 ---
 
-## 3) Build agent ISO (script only, no Terraform)
+## 4) Build agent ISO (script only, no Terraform)
 
 ```bash
 export CLUSTER_NAME=ocidemo
@@ -90,7 +130,7 @@ Output ISO path is written to:
 
 ---
 
-## 4) Disconnected only: upload rootfs to webserver
+## 5) Disconnected only: upload rootfs to webserver
 
 Only for `is_disconnected_installation=true`.
 
@@ -117,7 +157,7 @@ export CLUSTER_NAME=ocidemo
 
 ---
 
-## 5) Terraform phase B (pipeline)
+## 6) Terraform phase B (pipeline)
 
 Use the ISO produced in step 3:
 
@@ -137,7 +177,7 @@ terraform -chdir=terraform-stacks/create-cluster output -raw agent_iso_par_url
 
 ---
 
-## 6) Monitor install
+## 7) Monitor install
 
 ```bash
 export CLUSTER_NAME=ocidemo
@@ -164,9 +204,8 @@ When autoscaling is enabled:
 
 ## Notes
 
-- Keep `create_resource_attribution_tags = true` in `terraform.tfvars` for all applies.
-  Do **not** set it to `false` with `-var` on later phases — that destroys the `openshift-tags`
-  namespace in OCI and breaks the next apply.
+- Run Step 0 once per tenancy. Keep `create_resource_attribution_tags = false` in `create-cluster`.
+- Never toggle `create_resource_attribution_tags` to `true` inside `create-cluster` after Step 0.
 - Keep `cluster_name` and `zone_dns` consistent between Terraform and installer outputs.
 - Do not change node topology after ISO generation unless you regenerate configs and ISO.
 - Never commit pull secrets, PAR URLs, kubeadmin password, or kubeconfig artifacts.

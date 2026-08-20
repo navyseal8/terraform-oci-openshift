@@ -1,9 +1,16 @@
-# Step 1 — create-resource-attribution-tags (once per tenancy)
+# Step 0 — create-resource-attribution-tags (once per tenancy, separate state)
 #
 #   cp option-2-agent-based/examples/01-attribution.tfvars.example \
 #      terraform-stacks/create-resource-attribution-tags/terraform.tfvars
+#
+#   terraform -chdir=terraform-stacks/create-resource-attribution-tags init -input=false
+#   terraform -chdir=terraform-stacks/create-resource-attribution-tags apply -input=false -auto-approve
+#
+# Then in create-cluster/terraform.tfvars set:
+#   create_resource_attribution_tags = false
+#   tag_namespace_compartment_ocid_resource_tagging = "<same compartment OCID below>"
 
 tenancy_ocid = "REPLACE_TENANCY_OCID"
 
-# Reuse this OCID as tag_namespace_compartment_ocid_resource_tagging in steps 2 and 4.
+# Compartment that will own openshift-tags / openshift-resource defined tag.
 tag_namespace_compartment_ocid_resource_tagging = "REPLACE_COMPARTMENT_OCID"

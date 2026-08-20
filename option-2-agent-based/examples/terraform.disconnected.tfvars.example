@@ -1,5 +1,9 @@
 # Option 2 — Disconnected (air-gapped) Agent-based (single Terraform state)
 #
+# Prerequisite (once per tenancy):
+#   option-2-agent-based/examples/01-attribution.tfvars.example
+#   -> terraform-stacks/create-resource-attribution-tags/terraform.tfvars
+#
 #   cp option-2-agent-based/examples/terraform.disconnected.tfvars.example \
 #      terraform-stacks/create-cluster/terraform.tfvars
 #
@@ -16,7 +20,7 @@ cluster_name        = "ocidemo"
 zone_dns            = "example.com"
 installation_method = "Agent-based"
 
-create_resource_attribution_tags = true
+create_resource_attribution_tags = false # tags created in Step 0 (separate state)
 is_disconnected_installation     = true
 
 # Apply 1: infra + webserver + bucket (configs uploaded to Object Storage)
@@ -37,7 +41,6 @@ openshift_installer_version       = "4.19.24" # pin version for reproducible ISO
 # Apply 2: after ISO build + rootfs upload to webserver
 # create_openshift_instances = true
 # agent_iso_file_path        = "/path/to/.work/ocidemo/agent.x86_64.iso"
-# Keep create_resource_attribution_tags = true (do not set false; that deletes openshift-tags).
 
 public_ssh_key = "REPLACE_SSH_PUBLIC_KEY"
 
