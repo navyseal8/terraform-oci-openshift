@@ -53,6 +53,11 @@ output "webserver_private_ip" {
   description = "Disconnected install webserver IP (bootArtifactsBaseURL)."
 }
 
+output "webserver_public_ip" {
+  value       = try(module.webserver[0].webserver_public_ip, null)
+  description = "Webserver public IP for SSH/scp rootfs upload from outside the VCN."
+}
+
 output "boot_artifacts_base_url" {
   value       = var.is_disconnected_installation ? "http://${var.webserver_private_ip}" : null
   description = "Rootfs must be served at <boot_artifacts_base_url>/agent.x86_64-rootfs.img"

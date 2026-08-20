@@ -98,8 +98,15 @@ Get values from your pipeline outputs:
 
 ```bash
 export WEBSERVER_PRIVATE_IP="$(terraform -chdir=terraform-stacks/create-cluster output -raw webserver_private_ip)"
+export WEBSERVER_SSH_HOST="$(terraform -chdir=terraform-stacks/create-cluster output -raw webserver_public_ip)"
 export BOOT_ARTIFACTS_BASE_URL="$(terraform -chdir=terraform-stacks/create-cluster output -raw boot_artifacts_base_url)"
 ```
+
+`WEBSERVER_SSH_HOST` must be reachable from where you run the upload script:
+- from your laptop: use `webserver_public_ip`
+- from a bastion in the VCN: use `webserver_private_ip`
+
+Cluster nodes still fetch rootfs from the private URL (`boot_artifacts_base_url`).
 
 Then upload:
 
